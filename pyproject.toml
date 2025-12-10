@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "A monitoring tool for SHAP values in machine learning models."
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Avik Basu",email = "avikbasu93@gmail.com"}
+    {name = "Avik Basu", email = "avikbasu93@gmail.com"}
 ]
 maintainers = [
-    {name = "Avik Basu",email = "avikbasu93@gmail.com"}
+    {name = "Avik Basu", email = "avikbasu93@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.11"
