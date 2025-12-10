@@ -1,8 +1,7 @@
 [project]
 name = "shap-monitor"
-version = "0.1.0"
+version = "0.0.1"
 description = "A monitoring tool for SHAP values in machine learning models."
-license = {text = "Apache-2.0"}
 authors = [
     {name = "Avik Basu", email = "avikbasu93@gmail.com"}
 ]
