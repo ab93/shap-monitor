@@ -23,6 +23,10 @@ class ExplainerLike(Protocol):
     the shap_values method can be used.
     """
 
+    def __call__(self, X: ArrayLike) -> ArrayLike:
+        """Compute SHAP for input features."""
+        ...
+
     def shap_values(self, X: Any, **kwargs) -> Any:
         """Compute SHAP values for input features."""
         ...

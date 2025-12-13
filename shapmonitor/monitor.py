@@ -58,4 +58,4 @@ class SHAPMonitor:
         ArrayLike
             Computed SHAP values.
         """
-        return self._explainer.shap_values(X)
+        return self._explainer(X)
