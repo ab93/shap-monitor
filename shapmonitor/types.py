@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from os import PathLike as OSPathLike
-from typing import Any, Protocol
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -12,7 +12,7 @@ import numpy.typing as npt
 PathLike = str | OSPathLike
 
 # Array types for features and predictions
-ArrayLike = npt.NDArray[np.floating] | list[float]
+ArrayLike = npt.NDArray[np.floating]
 PredictionValue = float | int | npt.NDArray[np.floating]
 
 
@@ -27,22 +27,21 @@ class ExplainerLike(Protocol):
         """Compute SHAP for input features."""
         ...
 
-    def shap_values(self, X: Any, **kwargs) -> Any:
-        """Compute SHAP values for input features."""
-        ...
 
-
-@dataclass
-class ExplanationRecord:
-    """A single explanation record to be stored.
+@dataclass(slots=True)
+class ExplanationBatch:
+    """A batch of explanations to be stored.
 
     This corresponds to one row in the Parquet backend.
+    Feature-specific columns (shap_*, feat_*) are stored as dicts
+    mapping feature names to arrays of values.
     """
 
     timestamp: datetime
-    prediction: PredictionValue
-    shap_values: npt.NDArray[np.floating]
-    feature_values: npt.NDArray[np.floating]
-    base_value: float
+    batch_id: str
     model_version: str
-    sample_id: str
+    n_samples: int
+    base_values: ArrayLike
+    shap_values: dict[str, ArrayLike]  # {feature_name: array of shap values}
+    feature_values: dict[str, ArrayLike]  # {feature_name: array of values}
+    predictions: ArrayLike | None = None  # optional

@@ -31,6 +31,7 @@ def test_monitor(monitor):
     assert monitor.data_dir.exists()
     print(monitor.explainer)
 
-    shap_values = monitor.compute_shap(np.array([[0.5] * 5]))
-    print(shap_values)
-    shap.plots.beeswarm(shap_values)
+    explanations = monitor.compute(np.array([[0.5] * 5]))
+    print(explanations)
+    # shap.plots.beeswarm(shap_values)
+    print(type(explanations))
