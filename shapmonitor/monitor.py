@@ -2,7 +2,7 @@ import random
 import uuid
 from pathlib import Path
 
-from shapmonitor.types import PathLike, ExplainerLike, ArrayLike
+from shapmonitor.types import PathLike, ExplainerLike, ArrayLike, ExplanationLike
 
 
 class SHAPMonitor:
@@ -95,19 +95,19 @@ class SHAPMonitor:
         # TODO: Write to backend (ParquetBackend)
         _ = shap_values  # Placeholder until backend is implemented
 
-    def compute(self, X: ArrayLike) -> ArrayLike:
+    def compute(self, features: ArrayLike) -> ExplanationLike:
         """
         Compute SHAP values for the given input features.
 
 
         Parameters
         ----------
-        X : ArrayLike
+        features : ArrayLike
             Input features for which to compute SHAP values.
 
         Returns
         -------
-        ArrayLike
-            Computed SHAP values.
+        Shap explanation object
+            The SHAP explanation object containing SHAP values.
         """
-        return self._explainer(X)
+        return self._explainer(features)

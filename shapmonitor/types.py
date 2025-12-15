@@ -16,6 +16,24 @@ ArrayLike = npt.NDArray[np.floating]
 PredictionValue = float | int | npt.NDArray[np.floating]
 
 
+class ExplanationLike(Protocol):
+    """Protocol for SHAP explanation objects.
+
+    Any SHAP explanation object that implements the values and base_values
+    attributes can be used.
+    """
+
+    @property
+    def values(self) -> ArrayLike:
+        """Get SHAP values."""
+        ...
+
+    @property
+    def base_values(self) -> ArrayLike:
+        """Get base values."""
+        ...
+
+
 class ExplainerLike(Protocol):
     """Protocol for SHAP explainer objects.
 
@@ -23,7 +41,7 @@ class ExplainerLike(Protocol):
     the shap_values method can be used.
     """
 
-    def __call__(self, X: ArrayLike) -> ArrayLike:
+    def __call__(self, X: ArrayLike) -> ExplanationLike:
         """Compute SHAP for input features."""
         ...
 
