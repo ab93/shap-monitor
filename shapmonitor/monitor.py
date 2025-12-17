@@ -2,7 +2,9 @@ import random
 import uuid
 from pathlib import Path
 
-from shapmonitor.types import PathLike, ExplainerLike, ArrayLike
+import pandas as pd
+
+from shapmonitor.types import PathLike, ExplainerLike, ArrayLike, ExplanationLike
 
 
 class SHAPMonitor:
@@ -71,14 +73,35 @@ class SHAPMonitor:
         """Generate a unique batch ID."""
         return str(uuid.uuid4())
 
-    def log(self, features: ArrayLike, predictions: ArrayLike | None = None) -> None:
+    def log(self, X: ArrayLike, y: ArrayLike | None = None) -> None:
+        """Log SHAP explanations for a single prediction.
+
+        Parameters
+        ----------
+        X : ArrayLike
+            Input features (1D array: n_features).
+        y : ArrayLike, optional
+            Model prediction for the input. If not provided, prediction
+            will not be stored in the explanation record.
+
+        """
+        if self._feature_names and isinstance(X, pd.Series):
+            self._feature_names = X.index.tolist()
+
+        if not self._should_sample():
+            return
+
+        # Compute SHAP values for the single prediction
+        _ = self._explainer.explain_row()
+
+    def log_batch(self, X: ArrayLike, y: ArrayLike | None = None) -> None:
         """Log SHAP explanations for a batch of predictions.
 
         Parameters
         ----------
-        features : ArrayLike
+        X : ArrayLike
             Input features (2D array: n_samples x n_features).
-        predictions : ArrayLike, optional
+        y : ArrayLike, optional
             Model predictions for the batch. If not provided, predictions
             will not be stored in the explanation record.
 
@@ -86,16 +109,19 @@ class SHAPMonitor:
         ----
         TODO: Add support for single sample (1D array) inputs.
         """
+        if not self._feature_names and isinstance(X, pd.DataFrame):
+            self._feature_names = X.columns.tolist()
+
         if not self._should_sample():
             return
 
         # Compute SHAP values for the batch
-        shap_values = self.compute(features)
+        shap_values = self.compute(X)
 
         # TODO: Write to backend (ParquetBackend)
         _ = shap_values  # Placeholder until backend is implemented
 
-    def compute(self, X: ArrayLike) -> ArrayLike:
+    def compute(self, X: ArrayLike) -> ExplanationLike:
         """
         Compute SHAP values for the given input features.
 
@@ -107,7 +133,42 @@ class SHAPMonitor:
 
         Returns
         -------
-        ArrayLike
-            Computed SHAP values.
+        Shap explanation object
+            The SHAP explanation object containing SHAP values.
         """
         return self._explainer(X)
+
+
+if __name__ == "__main__":
+    import shap
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.datasets import load_diabetes
+
+    # Load sample data
+    data = load_diabetes(as_frame=True)
+    X, y = data.data, data.target
+
+    print(type(X), X.shape)
+
+    # Train a sample model
+    model = RandomForestRegressor(n_estimators=10, random_state=42)
+    model.fit(X, y)
+
+    # Create a SHAP explainer
+    explainer_ = shap.TreeExplainer(model)
+
+    # Initialize SHAPMonitor
+    monitor = SHAPMonitor(
+        explainer=explainer_,
+        data_dir="./shap_logs",
+        sample_rate=0.5,
+        model_version="rf-v1",
+    )
+
+    explanations = monitor.compute(X)
+    print("SHAP values shape:", explanations.shape)
+
+    # Log SHAP explanations for the training data
+    monitor.log_batch(X, y=model.predict(X))
+
+    monitor.log_batch(X.iloc[0])
