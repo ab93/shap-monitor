@@ -147,19 +147,6 @@ Contributions are welcome! This project is in early development, and we're build
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
-## Citation
-
-If you use shap-monitor in your research or production systems, please cite:
-
-```bibtex
-@software{shap_monitor,
-  title = {shap-monitor: Production ML Explainability Monitoring},
-  author = {Basu, Avik},
-  year = {2025},
-  url = {https://github.com/yourusername/shap-monitor}
-}
-```
-
 ## Acknowledgments
 
 Built on top of the excellent [SHAP](https://github.com/slundberg/shap) library by Scott Lundberg and the SHAP community.
