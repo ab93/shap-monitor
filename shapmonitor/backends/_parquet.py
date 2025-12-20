@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+import shutil
+from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
 
 from shapmonitor.backends._base import BaseBackend
-from shapmonitor.types import PathLike, ExplanationBatch
-
+from shapmonitor.types import PathLike, ExplanationBatch, DFrameLike
 
 _logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class ParquetBackend(BaseBackend):
 
     def __init__(self, file_dir: PathLike):
         self._file_dir = Path(file_dir)
+        _logger.info("ParquetBackend initialized at: %s", file_dir)
         self._file_dir.mkdir(parents=True, exist_ok=True)
 
         if not self._file_dir.is_dir():
@@ -37,12 +38,49 @@ class ParquetBackend(BaseBackend):
 
     @property
     def file_dir(self) -> Path:
+        """Get the directory where Parquet files are stored."""
         return self._file_dir
 
-    def read(self, start_dt: datetime, end_dt: datetime, batch_id: str | None = None):
-        pass
+    def read(self, start_dt: datetime | date, end_dt: datetime | date | None = None) -> DFrameLike:
+        """
+        Read explanations from Parquet files within a specified date range.
 
-    def write(self, batch: ExplanationBatch) -> None:
+
+        Parameters
+        ----------
+        start_dt: datetime
+            Start datetime for filtering explanations.
+        end_dt: datetime | None
+            End datetime for filtering explanations.
+
+        Returns
+        -------
+        DataFrame
+            A DataFrame containing the explanations within the specified range.
+        """
+        start_date = start_dt.date().strftime("%Y-%m-%d")
+        if end_dt is None:
+            end_date = start_date
+        else:
+            end_date = end_dt.date().strftime("%Y-%m-%d")
+
+        _logger.debug("Reading data from %s to %s", start_date, end_date)
+
+        date_range = pd.date_range(start_date, end_date, freq="D")
+
+        dfs = []
+        for _date in date_range:
+            file_dir = self._file_dir / _date.strftime("%Y-%m-%d")
+
+            for file_path in file_dir.glob("*.parquet"):
+                _df = pd.read_parquet(file_path)
+                dfs.append(_df)
+
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
+        return pd.DataFrame()
+
+    def write(self, batch: ExplanationBatch) -> Path:
         """
         Write a batch of explanations to a Parquet file.
 
@@ -50,6 +88,11 @@ class ParquetBackend(BaseBackend):
         ----------
         batch : ExplanationBatch
             The batch of explanations to write.
+
+        Returns
+        -------
+        Path
+            The path to the written Parquet file.
         """
         partition_date = batch.timestamp.strftime("%Y-%m-%d")
         file_path = self.file_dir / partition_date / f"{batch.batch_id}.parquet"
@@ -57,32 +100,40 @@ class ParquetBackend(BaseBackend):
 
         df = batch.to_dataframe()
         df.to_parquet(file_path, index=False)
+
         _logger.info("Wrote batch %s to %s", batch.batch_id, file_path)
+        return file_path
 
-    def read_all(self) -> list[ExplanationBatch]:
-        pass
+    def delete(self, cutoff_dt: datetime | date) -> int:
+        """
+        Delete Parquet files containing explanations before a specified datetime.
 
-    def delete(self, before_dt: datetime) -> None:
-        pass
+        Parameters
+        ----------
+        cutoff_dt : datetime
+            Datetime before which files will be deleted.
 
+        Returns
+        -------
+        int
+            Number of partitions deleted.
+        """
+        cutoff_date = cutoff_dt.date()
+        deleted_count = 0
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+        for partition_dir in self.file_dir.iterdir():
+            if not partition_dir.is_dir():
+                continue
 
-    backend = ParquetBackend("./shap_data/")
-    print("ParquetBackend initialized at:", backend.file_dir)
+            try:
+                partition_date = datetime.strptime(partition_dir.name, "%Y-%m-%d").date()
+            except ValueError:
+                _logger.debug("Skipping non-date directory: %s", partition_dir.name)
+                continue
 
-    # Example usage of write method
-    batch = ExplanationBatch(
-        timestamp=datetime.now(),
-        batch_id="batch_001",
-        model_version="v1.0",
-        n_samples=5,
-        base_values=[0.5] * 5,
-        shap_values={"feature1": [0.1, 0.2, 0.3, 0.4, 0.5]},
-        predictions=[0.6, 0.7, 0.8, 0.9, 1.0],
-    )
-    backend.write(batch)
+            if partition_date < cutoff_date:
+                shutil.rmtree(partition_dir)
+                _logger.info("Deleted partition: %s", partition_dir.name)
+                deleted_count += 1
 
-    df = pd.read_parquet("shap_data/2025-12-17/batch_001.parquet")
-    print(df)
+        return deleted_count
