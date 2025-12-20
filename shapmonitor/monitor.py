@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from shapmonitor.types import PathLike, ExplainerLike, ArrayLike, ExplanationLike
+from shapmonitor.types import PathLike, ExplainerLike, ArrayLike, ExplanationLike, Backend
 
 
 class SHAPMonitor:
@@ -22,17 +22,29 @@ class SHAPMonitor:
         Version identifier for the model (default is "unknown").
     feature_names : list[str], optional
         Names of the features in the input data.
+    backend : Backend, optional
+        Backend for storing explanations (default is None).
+
+    Raises
+    ------
+    ValueError
+        If neither data_dir nor backend is provided.
     """
 
     def __init__(
         self,
         explainer: ExplainerLike,
-        data_dir: PathLike,
+        data_dir: PathLike | None = None,
         sample_rate: float = 0.1,
         model_version: str = "unknown",
         feature_names: list[str] | None = None,
+        backend: Backend | None = None,
     ) -> None:
         self._explainer = explainer
+
+        if data_dir is None and backend is None:
+            raise ValueError("Either data_dir or backend must be provided.")
+
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._sample_rate = sample_rate
