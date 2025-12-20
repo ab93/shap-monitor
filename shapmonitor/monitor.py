@@ -45,6 +45,8 @@ class SHAPMonitor:
         if data_dir is None and backend is None:
             raise ValueError("Either data_dir or backend must be provided.")
 
+        self._backend = backend
+
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._sample_rate = sample_rate
