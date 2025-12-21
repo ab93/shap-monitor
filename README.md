@@ -5,6 +5,7 @@ Production ML explainability toolkit for monitoring SHAP values over time. Track
 ![Work in Progress](https://img.shields.io/badge/status-work%20in%20progress-yellow)
 ![Python Version](https://img.shields.io/badge/python-3.11+-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
+[![codecov](https://codecov.io/gh/ab93/shap-monitor/branch/main/graph/badge.svg)](https://codecov.io/gh/ab93/shap-monitor)
 
 ## Overview
 
