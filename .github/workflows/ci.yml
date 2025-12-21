@@ -77,15 +77,17 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
-      - name: Install pytest-cov
-        run: poetry add --group dev pytest-cov
-
       - name: Run tests with coverage
+        if: matrix.python-version == '3.11'
         run: poetry run pytest --cov=shapmonitor --cov-report=xml --cov-report=term-missing tests/
 
+      - name: Run tests
+        if: matrix.python-version != '3.11'
+        run: poetry run pytest tests/
+
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
         if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unittests
