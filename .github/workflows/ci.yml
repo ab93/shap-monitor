@@ -75,7 +75,8 @@ jobs:
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --with dev
+        run: poetry install --no-interaction --with dev -v
+        timeout-minutes: 15
 
       - name: Run tests with coverage
         if: matrix.python-version == '3.11'
