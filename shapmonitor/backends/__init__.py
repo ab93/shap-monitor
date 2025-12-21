@@ -39,4 +39,4 @@ class BackendFactory:
         return backend_class(*args, **kwargs)
 
 
-__all__ = ["ParquetBackend", "BaseBackend"]
+__all__ = ["ParquetBackend", "BaseBackend", "BackendFactory"]
