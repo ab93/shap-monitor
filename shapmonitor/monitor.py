@@ -1,12 +1,23 @@
+import logging
 import random
 import uuid
-from pathlib import Path
 
 import pandas as pd
 
-from shapmonitor.types import PathLike, ExplainerLike, ArrayLike, ExplanationLike
+from shapmonitor.backends import BackendFactory
+from shapmonitor.types import (
+    PathLike,
+    ExplainerLike,
+    ArrayLike,
+    ExplanationLike,
+    Backend,
+    ExplanationBatch,
+)
+
+_logger = logging.getLogger(__name__)
 
 
+# TODO: Add support for single sample (1D array) inputs.
 class SHAPMonitor:
     """Monitor SHAP explanations over time.
 
@@ -22,19 +33,37 @@ class SHAPMonitor:
         Version identifier for the model (default is "unknown").
     feature_names : list[str], optional
         Names of the features in the input data.
+    backend : Backend, optional
+        Backend for storing explanations (default is None).
+
+    Raises
+    ------
+    ValueError
+        If neither data_dir nor backend is provided or if both are provided.
     """
 
     def __init__(
         self,
         explainer: ExplainerLike,
-        data_dir: PathLike,
+        data_dir: PathLike | None = None,
         sample_rate: float = 0.1,
         model_version: str = "unknown",
         feature_names: list[str] | None = None,
+        backend: Backend | None = None,
     ) -> None:
         self._explainer = explainer
-        self._data_dir = Path(data_dir)
-        self._data_dir.mkdir(parents=True, exist_ok=True)
+
+        if data_dir is None and backend is None:
+            raise ValueError("Either data_dir or backend must be provided.")
+
+        if data_dir and backend:
+            raise ValueError("Provide only one of data_dir or backend, not both.")
+
+        if data_dir:
+            self._backend = BackendFactory.get_backend("parquet", file_dir=data_dir)
+        else:
+            self._backend = backend
+
         self._sample_rate = sample_rate
         self._model_version = model_version
         self._feature_names = feature_names
@@ -45,9 +74,9 @@ class SHAPMonitor:
         return self._explainer
 
     @property
-    def data_dir(self) -> Path:
-        """Get the data directory path."""
-        return self._data_dir
+    def backend(self) -> Backend:
+        """Get the backend for storing explanations."""
+        return self._backend
 
     @property
     def sample_rate(self) -> float:
@@ -73,27 +102,6 @@ class SHAPMonitor:
         """Generate a unique batch ID."""
         return str(uuid.uuid4())
 
-    def log(self, X: ArrayLike, y: ArrayLike | None = None) -> None:
-        """Log SHAP explanations for a single prediction.
-
-        Parameters
-        ----------
-        X : ArrayLike
-            Input features (1D array: n_features).
-        y : ArrayLike, optional
-            Model prediction for the input. If not provided, prediction
-            will not be stored in the explanation record.
-
-        """
-        if self._feature_names and isinstance(X, pd.Series):
-            self._feature_names = X.index.tolist()
-
-        if not self._should_sample():
-            return
-
-        # Compute SHAP values for the single prediction
-        _ = self._explainer.explain_row()
-
     def log_batch(self, X: ArrayLike, y: ArrayLike | None = None) -> None:
         """Log SHAP explanations for a batch of predictions.
 
@@ -104,22 +112,44 @@ class SHAPMonitor:
         y : ArrayLike, optional
             Model predictions for the batch. If not provided, predictions
             will not be stored in the explanation record.
-
-        Note
-        ----
-        TODO: Add support for single sample (1D array) inputs.
         """
-        if not self._feature_names and isinstance(X, pd.DataFrame):
-            self._feature_names = X.columns.tolist()
+        if not self._feature_names:
+            if isinstance(X, pd.DataFrame):
+                self._feature_names = X.columns.tolist()
+            else:
+                self._feature_names = [f"feat_{i}" for i in range(X.shape[1])]
 
         if not self._should_sample():
             return
 
-        # Compute SHAP values for the batch
-        shap_values = self.compute(X)
+        batch_id = self._generate_batch_id()
 
-        # TODO: Write to backend (ParquetBackend)
-        _ = shap_values  # Placeholder until backend is implemented
+        # Compute SHAP values for the batch
+        explanations = self.compute(X)
+
+        shap_values_dict = {
+            feat: explanations.values[:, idx] for idx, feat in enumerate(self._feature_names)
+        }
+        if isinstance(X, pd.DataFrame):
+            feat_values_dict = {
+                feat: X.iloc[:, idx].to_numpy() for idx, feat in enumerate(self._feature_names)
+            }
+        else:
+            feat_values_dict = {feat: X[:, idx] for idx, feat in enumerate(self._feature_names)}
+
+        explanation_batch = ExplanationBatch(
+            timestamp=pd.Timestamp.now(),
+            batch_id=batch_id,
+            model_version=self._model_version,
+            n_samples=len(X),
+            base_values=explanations.base_values,
+            shap_values=shap_values_dict,
+            feature_values=feat_values_dict,
+            predictions=y,
+        )
+
+        path = self._backend.write(explanation_batch)
+        _logger.info("Logged SHAP explanations for batch_id: %s in path: %s", batch_id, path)
 
     def compute(self, X: ArrayLike) -> ExplanationLike:
         """
@@ -144,6 +174,8 @@ if __name__ == "__main__":
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.datasets import load_diabetes
 
+    logging.basicConfig(level=logging.DEBUG)
+
     # Load sample data
     data = load_diabetes(as_frame=True)
     X, y = data.data, data.target
@@ -160,15 +192,21 @@ if __name__ == "__main__":
     # Initialize SHAPMonitor
     monitor = SHAPMonitor(
         explainer=explainer_,
-        data_dir="./shap_logs",
+        data_dir="./.shap_logs",
         sample_rate=0.5,
         model_version="rf-v1",
+        # feature_names=list(X.columns),
     )
 
     explanations = monitor.compute(X)
     print("SHAP values shape:", explanations.shape)
 
+    print("Base values:", explanations.shape)
+
+    # for idx, feat in enumerate(monitor._feature_names):
+    #    print(f"Feature: {feat}, SHAP values: {explanations.values[:, idx]}")
+
     # Log SHAP explanations for the training data
     monitor.log_batch(X, y=model.predict(X))
 
-    monitor.log_batch(X.iloc[0])
+    # monitor.log_batch(X.iloc[0])

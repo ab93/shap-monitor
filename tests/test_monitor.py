@@ -1,37 +1,102 @@
-import numpy as np
+"""Tests for SHAPMonitor."""
+
+from datetime import datetime, timedelta
+
 import pytest
 import shap
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.datasets import make_regression
+
 from shapmonitor import SHAPMonitor
-from shapmonitor.types import ExplainerLike
+from shapmonitor.backends import ParquetBackend
 
 
-@pytest.fixture
-def model():
-    X, y = make_regression(n_samples=100, n_features=5, random_state=42)
-    model = RandomForestRegressor()
-    model.fit(X, y)
-    return model
+class TestSHAPMonitor:
+    """Unit tests for SHAPMonitor."""
+
+    @pytest.fixture
+    def model(self, regression_data):
+        X, y = regression_data
+        model = RandomForestRegressor(n_estimators=10, random_state=42)
+        model.fit(X, y)
+        return model
+
+    @pytest.fixture
+    def explainer(self, model):
+        return shap.TreeExplainer(model)
+
+    @pytest.fixture
+    def monitor(self, explainer, tmp_path, feature_names):
+        return SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=1.0,
+            model_version="test-v1",
+            feature_names=feature_names,
+        )
+
+    def test_creates_data_directory(self, explainer, tmp_path):
+        """Monitor should create data directory if it doesn't exist."""
+        data_dir = tmp_path / "new_dir"
+        SHAPMonitor(explainer=explainer, data_dir=data_dir)
+        assert data_dir.exists()
+
+    def test_compute_returns_explanation(self, monitor, sample_features):
+        """Compute should return SHAP explanation."""
+        explanation = monitor.compute(sample_features)
+
+        assert hasattr(explanation, "values")
+        assert hasattr(explanation, "base_values")
+
+    def test_generate_batch_id_is_unique(self):
+        """Each batch ID should be unique."""
+        ids = [SHAPMonitor._generate_batch_id() for _ in range(100)]
+        assert len(set(ids)) == 100
+
+    def test_should_sample_respects_rate(self, explainer, tmp_path):
+        """Sampling should roughly match the configured rate."""
+        monitor = SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=0.5)
+
+        samples = [monitor._should_sample() for _ in range(1000)]
+        sample_rate = sum(samples) / len(samples)
+
+        assert 0.4 < sample_rate < 0.6
 
 
-@pytest.fixture
-def explainer(model) -> ExplainerLike:
-    return shap.Explainer(model)
+@pytest.mark.integration
+class TestSHAPMonitorIntegration:
+    """Integration tests for SHAPMonitor end-to-end flow."""
 
+    @pytest.fixture
+    def model(self, regression_data):
+        X, y = regression_data
+        model = RandomForestRegressor(n_estimators=10, random_state=42)
+        model.fit(X, y)
+        return model
 
-@pytest.fixture
-def monitor(explainer, tmp_path):
-    return SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=0.2)
+    @pytest.fixture
+    def explainer(self, model):
+        return shap.TreeExplainer(model)
 
+    def test_full_logging_flow(self, explainer, tmp_path, regression_data, feature_names):
+        """Integration: log_batch should compute SHAP and write to backend."""
+        X, _ = regression_data
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=1.0,
+            model_version="integration-v1",
+            feature_names=feature_names,
+        )
 
-def test_monitor(monitor):
-    assert isinstance(monitor, SHAPMonitor)
-    assert monitor.sample_rate == 0.2
-    assert monitor.data_dir.exists()
-    print(monitor.explainer)
+        # Log a batch
+        monitor.log_batch(X[:10])
 
-    explanations = monitor.compute(np.array([[0.5] * 5]))
-    print(explanations)
-    # shap.plots.beeswarm(shap_values)
-    print(type(explanations))
+        # Read back from backend
+        backend = ParquetBackend(tmp_path)
+        today = datetime.now()
+        df = backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        # Verify data was written
+        assert len(df) == 10
+        for feat in feature_names:
+            assert f"shap_{feat}" in df.columns

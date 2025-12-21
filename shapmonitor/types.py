@@ -18,6 +18,29 @@ DFrameLike = pd.DataFrame
 PredictionValue = float | int | str
 
 
+class Backend(Protocol):
+    """Protocol for backend storage systems.
+
+    Any backend that implements the read, write, and delete methods can be used.
+    """
+
+    def read(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> DFrameLike:
+        """Read data from the backend."""
+        ...
+
+    def write(self, batch: "ExplanationBatch") -> None:
+        """Write data to the backend."""
+        ...
+
+    def delete(self, cutoff_dt: datetime) -> None:
+        """Delete data before a certain datetime."""
+        ...
+
+
 class ExplanationLike(Protocol):
     """Protocol for SHAP explanation objects.
 
