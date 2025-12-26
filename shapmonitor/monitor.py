@@ -1,6 +1,7 @@
 import logging
 import random
 import uuid
+from datetime import datetime
 
 import pandas as pd
 
@@ -138,7 +139,7 @@ class SHAPMonitor:
             feat_values_dict = {feat: X[:, idx] for idx, feat in enumerate(self._feature_names)}
 
         explanation_batch = ExplanationBatch(
-            timestamp=pd.Timestamp.now(),
+            timestamp=datetime.now(),
             batch_id=batch_id,
             model_version=self._model_version,
             n_samples=len(X),
