@@ -89,8 +89,6 @@ This project is in early development (v0.1). The core functionality is being act
 - **v0.2 (Planned)**: Drift detection, asynchronous processing, MLflow integration
 - **v0.3+ (Future)**: Dashboard/visualization, additional framework integrations, advanced alerting
 
-See [AGENTS.md](AGENTS.md) for detailed architecture and roadmap.
-
 ## Development
 
 ### Prerequisites
