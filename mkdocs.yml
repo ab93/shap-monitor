@@ -1,0 +1,195 @@
+site_name: shap-monitor
+site_description: Production ML explainability toolkit for monitoring SHAP values over time
+site_author: Avik Basu
+site_url: https://ab93.github.io/shap-monitor/
+repo_name: ab93/shap-monitor
+repo_url: https://github.com/ab93/shap-monitor
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  features:
+    - navigation.instant          # Instant loading
+    - navigation.instant.prefetch # Prefetch pages
+    - navigation.instant.progress # Show progress bar
+    - navigation.tracking         # Update URL with anchor
+    - navigation.tabs             # Top-level sections in tabs
+    - navigation.tabs.sticky      # Tabs always visible
+    - navigation.sections         # Sections in navigation
+    - navigation.expand           # Expand sections by default
+    - navigation.path             # Breadcrumbs
+    - navigation.indexes          # Section index pages
+    - navigation.top              # Back to top button
+    - search.suggest              # Search suggestions
+    - search.highlight            # Highlight search terms
+    - search.share                # Share search results
+    - content.code.copy           # Copy button for code blocks
+    - content.code.annotate       # Code annotations
+    - content.tabs.link           # Link content tabs
+    - toc.follow                  # TOC follows scroll
+
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ab93/shap-monitor
+      name: GitHub Repository
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/shap-monitor/
+      name: PyPI Package
+
+  version:
+    provider: mike
+    default: latest
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
+      default_handler: python
+      handlers:
+        python:
+          options:
+            # General options
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_object_full_path: false
+            show_category_heading: true
+
+            # Headings
+            heading_level: 2
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+
+            # Members
+            members_order: source
+            group_by_category: true
+            show_submodules: false
+
+            # Docstrings
+            docstring_style: numpy
+            docstring_section_style: table
+            merge_init_into_class: true
+            show_if_no_docstring: false
+
+            # Signatures
+            show_signature: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+
+            # Additional
+            show_bases: true
+            show_inheritance_diagram: false
+
+            # Filters
+            filters:
+              - "!^_"  # Exclude private members
+              - "^__init__$"  # Include __init__
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+  - User Guide:
+    - user-guide/index.md
+    - Monitoring: user-guide/monitoring.md
+    - Analysis: user-guide/analysis.md
+    - Storage Backends: user-guide/backends.md
+    - Examples: user-guide/examples.md
+  - API Reference:
+    - api/index.md
+    - Monitor: api/monitor.md
+    - Analysis: api/analysis.md
+    - Backends: api/backends.md
+    - Types: api/types.md
+  - Development:
+    - development/index.md
+    - Contributing: development/contributing.md
+    - Roadmap: development/roadmap.md
+
+watch:
+  - shapmonitor
