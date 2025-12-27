@@ -26,7 +26,7 @@ monitor = SHAPMonitor(
     data_dir="./shap_logs",
     sample_rate=0.1,  # Log 10% of predictions
     model_version="v1.0",
-    feature_names=[f"feature_{i}" for i in range(10)]
+    feature_names=[f"feature_{{i}}" for i in range(10)]
 )
 
 # Log a batch of predictions
