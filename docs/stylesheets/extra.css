@@ -1,0 +1,36 @@
+/* Custom styles for shap-monitor documentation */
+
+:root {
+  --md-primary-fg-color: #3f51b5;
+  --md-primary-fg-color--light: #5c6bc0;
+  --md-primary-fg-color--dark: #303f9f;
+  --md-accent-fg-color: #2196f3;
+}
+
+/* Improve code block readability */
+.highlight code {
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+/* Add spacing to admonitions */
+.admonition {
+  margin: 1.5em 0;
+}
+
+/* Style for API reference signatures */
+.doc-heading code {
+  background-color: var(--md-code-bg-color);
+  padding: 0.1em 0.3em;
+  border-radius: 0.2em;
+}
+
+/* Improve table styling in API docs */
+.md-typeset table:not([class]) {
+  font-size: 0.85em;
+}
+
+/* Better spacing for navigation items */
+.md-nav__item {
+  margin-bottom: 0.2em;
+}
