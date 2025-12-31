@@ -19,6 +19,14 @@ Most SHAP tooling focuses on development and analysis. shap-monitor bridges the 
 
 ## Installation
 
+You can install shap-monitor via pip:
+
+```bash
+pip install shap-monitor
+```
+
+### Installation from Source
+
 This project uses Poetry for dependency management. Ensure you have Python 3.11 or higher installed.
 
 ```bash
@@ -33,11 +41,7 @@ poetry install
 poetry install --with dev
 ```
 
-For production use, install directly from the package (when published):
 
-```bash
-pip install shap-monitor
-```
 
 ## Quick Start
 

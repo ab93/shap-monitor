@@ -5,9 +5,16 @@
 - Python 3.11 or higher
 - Poetry (for development)
 
+## Via PyPI
+You can install shap-monitor via pip:
+
+```bash
+pip install shap-monitor
+```
+
 ## From Source (Development)
 
-Currently, shap-monitor is in early development and not yet published to PyPI. To install from source:
+To install from source:
 
 ```bash
 # Clone the repository

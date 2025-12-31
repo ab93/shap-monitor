@@ -14,7 +14,8 @@ dependencies = [
     "shap (>=0.50.0,<0.51.0)",
     "numpy (>=2.0.0,<3.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
-    "pyarrow (>=22.0.0,<23.0.0)"
+    "pyarrow (>=22.0.0,<23.0.0)",
+    "ipykernel (>=7.1.0,<8.0.0)"
 ]
 
 
@@ -44,6 +45,10 @@ docs = [
     "mkdocstrings[python] (>=1.0.0,<2.0.0)",
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0"
+]
+examples = [
+    "jupyter (>=1.1.1,<2.0.0)",
+    "ucimlrepo (>=0.0.7,<0.0.8)"
 ]
 
 [tool.black]
