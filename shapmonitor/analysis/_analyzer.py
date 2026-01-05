@@ -166,10 +166,10 @@ class SHAPAnalyzer:
                 - mean_abs_1, mean_abs_2: Feature importance per period
                 - delta_mean_abs: Absolute change (period_2 - period_1)
                 - pct_delta_mean_abs: Percentage change from period_1
+                - mean_1, mean_2: Mean SHAP value (direction) per period
                 - rank_1, rank_2: Feature importance rank per period
                 - delta_rank: Rank change (positive = less important)
                 - rank_change: 'increased', 'decreased', or 'no_change'
-                - mean_1, mean_2: Mean SHAP value (direction) per period
                 - sign_flip: True if contribution direction changed
 
             Attributes:
@@ -229,12 +229,12 @@ class SHAPAnalyzer:
                 "mean_abs_2",
                 "delta_mean_abs",
                 "pct_delta_mean_abs",
+                "mean_1",
+                "mean_2",
                 "rank_1",
                 "rank_2",
                 "delta_rank",
                 "rank_change",
-                "mean_1",
-                "mean_2",
                 "sign_flip",
             ]
         ]
