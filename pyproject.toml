@@ -9,14 +9,45 @@ maintainers = [
     {name = "Avik Basu", email = "avikbasu93@gmail.com"}
 ]
 readme = "README.md"
+license = { text = "Apache-2.0" }
+keywords = [
+    "shap",
+    "monitoring",
+    "machine-learning",
+    "explainability",
+    "data-science"
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis"
+]
+
 requires-python = ">=3.11"
 dependencies = [
     "shap (>=0.50.0,<0.51.0)",
     "numpy (>=2.0.0,<3.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
-    "pyarrow (>=22.0.0,<23.0.0)"
+    "pyarrow (>=22.0.0,<23.0.0)",
+    "ipykernel (>=7.1.0,<8.0.0)"
 ]
 
+
+[project.urls]
+Homepage = "https://github.com/ab93/shap-monitor"
+Source = "https://github.com/ab93/shap-monitor"
+Issues = "https://github.com/ab93/shap-monitor/issues"
+Documentation = "https://ab93.github.io/shap-monitor/"
 
 [tool.poetry]
 packages = [{include = "shapmonitor"}]
@@ -44,6 +75,10 @@ docs = [
     "mkdocstrings[python] (>=1.0.0,<2.0.0)",
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0"
+]
+examples = [
+    "jupyter (>=1.1.1,<2.0.0)",
+    "ucimlrepo (>=0.0.7,<0.0.8)"
 ]
 
 [tool.black]
