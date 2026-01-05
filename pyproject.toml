@@ -3,10 +3,10 @@ name = "shap-monitor"
 version = "0.0.1"
 description = "A monitoring tool for SHAP values in machine learning models."
 authors = [
-    {name = "Avik Basu", email = "avikbasu93@gmail.com"}
+    {name = "Avik Basu"}
 ]
 maintainers = [
-    {name = "Avik Basu", email = "avikbasu93@gmail.com"}
+    {name = "Avik Basu"}
 ]
 readme = "README.md"
 license = { text = "Apache-2.0" }
