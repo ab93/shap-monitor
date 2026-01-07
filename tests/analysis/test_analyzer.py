@@ -9,7 +9,7 @@ from freezegun import freeze_time
 
 from shapmonitor.analysis import SHAPAnalyzer
 from shapmonitor.backends import ParquetBackend
-from shapmonitor.types import ExplanationBatch
+from shapmonitor.types import ExplanationBatch, Period
 
 
 @pytest.fixture
@@ -87,13 +87,12 @@ class TestCompareTimePeriods:
         """Compare should return DataFrame with correct columns."""
         analyzer = SHAPAnalyzer(populated_backend)
         result = analyzer.compare_time_periods(
-            datetime(2025, 12, 20),
-            datetime(2025, 12, 22),
-            datetime(2025, 12, 23),
-            datetime(2025, 12, 26),
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
         )
 
         expected_cols = {
+            "psi",
             "mean_abs_1",
             "mean_abs_2",
             "delta_mean_abs",
@@ -114,10 +113,8 @@ class TestCompareTimePeriods:
         """Delta should be period_2 - period_1."""
         analyzer = SHAPAnalyzer(populated_backend)
         result = analyzer.compare_time_periods(
-            datetime(2025, 12, 20),
-            datetime(2025, 12, 22),
-            datetime(2025, 12, 23),
-            datetime(2025, 12, 26),
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
         )
 
         for feature in result.index:
@@ -125,6 +122,18 @@ class TestCompareTimePeriods:
             np.testing.assert_almost_equal(
                 result.loc[feature, "delta_mean_abs"], expected, decimal=5
             )
+
+    def test_compare_accepts_plain_tuple(self, populated_backend):
+        """Compare should accept plain tuples as well as Period."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        # Using plain tuples instead of Period
+        result = analyzer.compare_time_periods(
+            (datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            (datetime(2025, 12, 23), datetime(2025, 12, 26)),
+        )
+
+        assert not result.empty
+        assert "psi" in result.columns
 
     def test_compare_sign_flip_detection(self, tmp_path):
         """Sign flip should detect when mean SHAP changes sign."""
@@ -153,10 +162,8 @@ class TestCompareTimePeriods:
 
         analyzer = SHAPAnalyzer(backend)
         result = analyzer.compare_time_periods(
-            datetime(2025, 12, 20),
-            datetime(2025, 12, 21),
-            datetime(2025, 12, 25),
-            datetime(2025, 12, 26),
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 21)),
+            Period(datetime(2025, 12, 25), datetime(2025, 12, 26)),
         )
 
         assert result.loc["feature_x", "sign_flip"] == True  # noqa: E712
@@ -165,10 +172,8 @@ class TestCompareTimePeriods:
         """Rank change should have valid categorical values."""
         analyzer = SHAPAnalyzer(populated_backend)
         result = analyzer.compare_time_periods(
-            datetime(2025, 12, 20),
-            datetime(2025, 12, 22),
-            datetime(2025, 12, 23),
-            datetime(2025, 12, 26),
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
         )
 
         valid_values = {"increased", "decreased", "no_change"}
@@ -178,10 +183,8 @@ class TestCompareTimePeriods:
         """Should return empty DataFrame when both periods have no data."""
         analyzer = SHAPAnalyzer(backend)
         result = analyzer.compare_time_periods(
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 2),
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 4),
+            Period(datetime(2024, 1, 1), datetime(2024, 1, 2)),
+            Period(datetime(2024, 1, 3), datetime(2024, 1, 4)),
         )
 
         assert result.empty

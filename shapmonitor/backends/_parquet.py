@@ -20,6 +20,8 @@ class ParquetBackend(BaseBackend):
     ----------
     file_dir : PathLike
         Directory where Parquet files will be stored.
+    purge_existing : bool, optional
+        If True, existing files in the directory will be deleted (default is False).
 
     Raises
     ------
@@ -28,9 +30,14 @@ class ParquetBackend(BaseBackend):
 
     """
 
-    def __init__(self, file_dir: PathLike):
+    def __init__(self, file_dir: PathLike, purge_existing: bool = False) -> None:
         self._file_dir = Path(file_dir)
         _logger.info("ParquetBackend initialized at: %s", file_dir)
+
+        if purge_existing and self._file_dir.exists():
+            shutil.rmtree(self._file_dir)
+            _logger.warning("Purged existing files in directory: %s", file_dir)
+
         self._file_dir.mkdir(parents=True, exist_ok=True)
 
         if not self._file_dir.is_dir():
