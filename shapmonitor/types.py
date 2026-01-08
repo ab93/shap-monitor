@@ -1,9 +1,9 @@
 """Type definitions for shap-monitor."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from os import PathLike as OSPathLike
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -14,8 +14,20 @@ PathLike = str | OSPathLike
 
 # Array types for features and predictions
 ArrayLike = npt.NDArray[np.floating]
+SeriesLike = pd.Series
 DFrameLike = pd.DataFrame
 PredictionValue = float | int | str
+
+
+class Period(NamedTuple):
+    """A time period defined by start and end dates.
+
+    Can be used as a tuple: `Period(start, end)` or with named fields:
+    `Period(start=date(2025, 1, 1), end=date(2025, 1, 7))`
+    """
+
+    start: datetime | date
+    end: datetime | date
 
 
 class Backend(Protocol):

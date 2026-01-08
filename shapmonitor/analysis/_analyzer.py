@@ -4,7 +4,8 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from shapmonitor.types import Backend, DFrameLike
+from shapmonitor.analysis.metrics import population_stability_index
+from shapmonitor.types import Backend, DFrameLike, Period, SeriesLike
 
 _logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ class SHAPAnalyzer:
 
     Examples
     --------
+    >>> from shapmonitor.backends import ParquetBackend
+    >>> from shapmonitor.analysis import SHAPAnalyzer
+    >>> ...
     >>> backend = ParquetBackend("/path/to/shap_logs")
     >>> analyzer = SHAPAnalyzer(backend, min_abs_shap=0.01)
     >>> summary = analyzer.summary(start_date, end_date)
@@ -45,8 +49,54 @@ class SHAPAnalyzer:
         """Get the backend for retrieving explanations."""
         return self._backend
 
+    def fetch_shap_values(self, start_dt: datetime | date, end_dt: datetime | date) -> DFrameLike:
+        """Fetch raw SHAP values from the backend within a date range.
+
+        Parameters
+        ----------
+        start_dt : datetime | date
+            Start of the date range (inclusive).
+        end_dt : datetime | date
+            End of the date range (inclusive).
+
+        Returns
+        -------
+        DataFrame
+            Raw SHAP values indexed by timestamp.
+        """
+        df = self._backend.read(start_dt, end_dt)
+
+        if df.empty:
+            _logger.warning("No data found for date range %s to %s", start_dt, end_dt)
+            return pd.DataFrame()
+
+        return df.filter(like="shap_")
+
+    def _construct_summary(self, shap_df: DFrameLike) -> DFrameLike:
+        result = (
+            pd.DataFrame(
+                {
+                    "feature": shap_df.columns,
+                    "mean_abs": shap_df.abs().mean(),
+                    "mean": shap_df.mean(),
+                    "std": shap_df.std(),
+                    "min": shap_df.min(),
+                    "max": shap_df.max(),
+                },
+            )
+            .set_index("feature")
+            .astype(np.float32)
+        )
+        result.attrs["n_samples"] = len(shap_df)
+        if self._min_abs_shap > 0.0:
+            result = result[result["mean_abs"] >= self._min_abs_shap]
+        return result
+
     def summary(
-        self, start_dt: datetime | date, end_dt: datetime | date, sort_by: str = "mean_abs"
+        self,
+        start_dt: datetime | date,
+        end_dt: datetime | date,
+        sort_by: str = "mean_abs",
     ) -> DFrameLike:
         """Compute summary statistics for SHAP values in a date range.
 
@@ -79,33 +129,10 @@ class SHAPAnalyzer:
         -----
         Features with mean_abs below `min_abs_shap` threshold are excluded.
         """
-        df = self._backend.read(start_dt, end_dt)
-
-        if df.empty:
-            _logger.warning("No data found for date range %s to %s", start_dt, end_dt)
-            return pd.DataFrame()
-
-        shap_cols = df.filter(like="shap_")
-        feature_names = [col.replace("shap_", "") for col in shap_cols.columns]
-
-        result = (
-            pd.DataFrame(
-                {
-                    "feature": feature_names,
-                    "mean_abs": shap_cols.abs().mean(),
-                    "mean": shap_cols.mean(),
-                    "std": shap_cols.std(),
-                    "min": shap_cols.min(),
-                    "max": shap_cols.max(),
-                },
-            )
-            .set_index("feature")
-            .astype(np.float32)
+        shap_df = self.fetch_shap_values(start_dt, end_dt).rename(
+            columns=lambda col: col.replace("shap_", "")
         )
-        result.attrs["n_samples"] = len(shap_cols)
-
-        if self._min_abs_shap > 0.0:
-            result = result[result["mean_abs"] >= self._min_abs_shap]
+        result = self._construct_summary(shap_df)
 
         if sort_by not in result.columns:
             raise ValueError(
@@ -116,28 +143,20 @@ class SHAPAnalyzer:
 
         return result.sort_values("mean_abs", ascending=False)
 
-    def compare_versions(self, *model_versions: str):
-        """Compare SHAP explanations across different model versions.
+    @staticmethod
+    def _calculate_psi(shap_df_ref: DFrameLike, shap_df_curr: DFrameLike) -> SeriesLike:
+        common_features = shap_df_ref.columns.intersection(shap_df_curr.columns)
 
-        Parameters
-        ----------
-        model_versions : str
-            Model version identifiers to compare.
-
-        Returns
-        -------
-        DataFrame
-            Comparison of SHAP statistics across model versions.
-        """
-        pass
+        psi = np.zeros(len(common_features))
+        for i, feature in enumerate(common_features):
+            psi[i] = population_stability_index(shap_df_ref[feature], shap_df_curr[feature])
+        return pd.Series(psi, index=common_features, name="psi")
 
     def compare_time_periods(
         self,
-        start_1: datetime | date,
-        end_1: datetime | date,
-        start_2: datetime | date,
-        end_2: datetime | date,
-        sort_by: str = "mean_abs_1",
+        period_ref: Period,
+        period_curr: Period,
+        sort_by: str = "psi",
     ) -> DFrameLike:
         """Compare SHAP explanations between two time periods.
 
@@ -146,14 +165,10 @@ class SHAPAnalyzer:
 
         Parameters
         ----------
-        start_1 : datetime | date
-            Start of the first (baseline) time period.
-        end_1 : datetime | date
-            End of the first time period.
-        start_2 : datetime | date
-            Start of the second (comparison) time period.
-        end_2 : datetime | date
-            End of the second time period.
+        period_ref : Period
+            Tuple of (start_dt, end_dt) defining the reference date range (both inclusive).
+        period_curr : Period
+            Tuple of (start_dt, end_dt) defining the current date range (both inclusive).
         sort_by : str, optional
             Column to sort results by (default: 'mean_abs_1').
 
@@ -163,6 +178,7 @@ class SHAPAnalyzer:
             Comparison statistics indexed by feature name.
 
             Columns:
+                - psi: Population Stability Index between periods
                 - mean_abs_1, mean_abs_2: Feature importance per period
                 - delta_mean_abs: Absolute change (period_2 - period_1)
                 - pct_delta_mean_abs: Percentage change from period_1
@@ -180,13 +196,35 @@ class SHAPAnalyzer:
         -----
         Features with mean_abs below `min_abs_shap` threshold are excluded.
         Uses outer join, so features appearing in only one period will have NaN.
-        """
-        summary_df_1 = self.summary(start_1, end_1)
-        summary_df_2 = self.summary(start_2, end_2)
 
-        if summary_df_1.empty and summary_df_2.empty:
+        Below is a guideline for interpreting PSI values:
+
+          | PSI Value  | Interpretation              |
+          |------------|-----------------------------|
+          | 0          | Identical distributions     |
+          | < 0.1      | No significant shift        |
+          | 0.1 - 0.25 | Moderate shift, investigate |
+          | 0.25 - 0.5 | Significant shift           |
+          | > 0.5      | Severe shift                |
+
+
+        """
+        shap_df_ref = self.fetch_shap_values(period_ref[0], period_ref[1]).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+        shap_df_curr = self.fetch_shap_values(period_curr[0], period_curr[1]).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+        if shap_df_ref.empty and shap_df_curr.empty:
             _logger.warning("No data found for either time period")
             return pd.DataFrame()
+
+        # Calculate PSI
+        psi = self._calculate_psi(shap_df_ref, shap_df_curr)
+
+        # Calculate summaries
+        summary_df_1 = self._construct_summary(shap_df_ref)
+        summary_df_2 = self._construct_summary(shap_df_curr)
 
         # Capture attrs before suffix (pandas loses attrs on most operations)
         n_samples_1 = summary_df_1.attrs.get("n_samples")
@@ -216,15 +254,19 @@ class SHAPAnalyzer:
             conditions, ["increased", "decreased"], default="no_change"
         )
 
-        # Vectorized sign flip calculation (NaN filled with 0 to avoid false positives)
+        # Sign flip calculation (NaN filled with 0 to avoid false positives)
         comparison_df["sign_flip"] = np.sign(comparison_df["mean_1"]).fillna(0) != np.sign(
             comparison_df["mean_2"]
         ).fillna(0)
+
+        # Add PSI calculation
+        comparison_df = comparison_df.join(psi, how="left").fillna({"psi": np.nan})
 
         # TODO: Add relationship flip calculations
 
         comparison_df = comparison_df[
             [
+                "psi",
                 "mean_abs_1",
                 "mean_abs_2",
                 "delta_mean_abs",
@@ -247,3 +289,18 @@ class SHAPAnalyzer:
             )
 
         return comparison_df.sort_values(sort_by, ascending=False)
+
+    def compare_versions(self, *model_versions: str):
+        """Compare SHAP explanations across different model versions.
+
+        Parameters
+        ----------
+        model_versions : str
+            Model version identifiers to compare.
+
+        Returns
+        -------
+        DataFrame
+            Comparison of SHAP statistics across model versions.
+        """
+        raise NotImplementedError("Method not yet implemented.")
