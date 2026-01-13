@@ -1,8 +1,8 @@
 import logging
-import random
 import uuid
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 from shapmonitor.backends import BackendFactory
@@ -51,6 +51,7 @@ class SHAPMonitor:
         model_version: str = "unknown",
         feature_names: list[str] | None = None,
         backend: Backend | None = None,
+        random_seed: int | None = 42,
     ) -> None:
         self._explainer = explainer
 
@@ -68,6 +69,7 @@ class SHAPMonitor:
         self._sample_rate = sample_rate
         self._model_version = model_version
         self._feature_names = feature_names
+        self._rng = np.random.default_rng(random_seed)
 
     @property
     def explainer(self) -> ExplainerLike:
@@ -94,10 +96,6 @@ class SHAPMonitor:
         """Get the feature names."""
         return self._feature_names
 
-    def _should_sample(self) -> bool:
-        """Determine if current prediction should be sampled."""
-        return random.random() < self._sample_rate
-
     @staticmethod
     def _generate_batch_id() -> str:
         """Generate a unique batch ID."""
@@ -120,8 +118,8 @@ class SHAPMonitor:
             else:
                 self._feature_names = [f"feat_{i}" for i in range(X.shape[1])]
 
-        if not self._should_sample():
-            return
+        X = np.asarray(X, dtype=np.float32)
+        X = self._rng.choice(X, size=int(len(X) * self._sample_rate), replace=False)
 
         batch_id = self._generate_batch_id()
 

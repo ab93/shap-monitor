@@ -110,24 +110,34 @@ print(summary.attrs['n_samples'])
 Compare SHAP explanations between two time periods:
 
 ```python
+# Using plain tuples
 comparison = analyzer.compare_time_periods(
-    start_1=datetime(2025, 12, 1),   # Period 1 start
-    end_1=datetime(2025, 12, 15),    # Period 1 end
-    start_2=datetime(2025, 12, 16),  # Period 2 start
-    end_2=datetime(2025, 12, 30),    # Period 2 end
-    sort_by="mean_abs_1"             # Optional
+    (datetime(2025, 12, 1), datetime(2025, 12, 15)),   # reference period
+    (datetime(2025, 12, 16), datetime(2025, 12, 30)),  # current period
+)
+
+# Or using Period for named fields
+from shapmonitor.types import Period
+
+comparison = analyzer.compare_time_periods(
+    Period(datetime(2025, 12, 1), datetime(2025, 12, 15)),
+    Period(datetime(2025, 12, 16), datetime(2025, 12, 30)),
 )
 ```
 
 **Parameters:**
 
-- `start_1`, `end_1`: First time period (baseline)
-- `start_2`, `end_2`: Second time period (comparison)
-- `sort_by`: Column to sort by (default: `"mean_abs_1"`)
+- `period_ref`: Reference time period as `Period(start, end)` or tuple
+- `period_curr`: Current time period as `Period(start, end)` or tuple
+- `sort_by`: Column to sort by (default: `"psi"`)
 
 **Returns:**
 
 DataFrame with columns:
+
+**Drift Detection:**
+
+- `psi`: Population Stability Index between periods (primary drift metric)
 
 **Feature Importance:**
 
@@ -146,6 +156,16 @@ DataFrame with columns:
 - `mean_1`, `mean_2`: Mean SHAP value per period
 - `sign_flip`: True if contribution direction changed
 
+**PSI Interpretation:**
+
+| PSI Value  | Interpretation              |
+|------------|-----------------------------|
+| 0          | Identical distributions     |
+| < 0.1      | No significant shift        |
+| 0.1 - 0.25 | Moderate shift, investigate |
+| 0.25 - 0.5 | Significant shift           |
+| > 0.5      | Severe shift                |
+
 **Attributes:**
 
 - `n_samples_1`: Sample count in period 1
@@ -155,10 +175,10 @@ DataFrame with columns:
 
 ```python
 print(comparison)
-#              mean_abs_1  mean_abs_2  delta_mean_abs  pct_delta_mean_abs  rank_1  rank_2  delta_rank rank_change    mean_1    mean_2  sign_flip
-# MedInc            0.345       0.289          -0.056               -16.2     1.0     1.0         0.0  no_change      0.312     0.276      False
-# AveRooms          0.234       0.312           0.078                33.3     2.0     2.0         0.0  no_change     -0.198    -0.267      False
-# Latitude          0.189       0.145          -0.044               -23.3     3.0     4.0         1.0  decreased      0.167     0.134      False
+#              psi  mean_abs_1  mean_abs_2  delta_mean_abs  ...  rank_change  sign_flip
+# MedInc      0.08       0.345       0.289          -0.056  ...    no_change      False
+# AveRooms    0.15       0.234       0.312           0.078  ...    no_change      False
+# Latitude    0.32       0.189       0.145          -0.044  ...    decreased      False
 
 print(comparison.attrs['n_samples_1'])  # 2430
 print(comparison.attrs['n_samples_2'])  # 2990
@@ -185,19 +205,21 @@ last_week_start = today - timedelta(days=14)
 
 # Compare weeks
 comparison = analyzer.compare_time_periods(
-    start_1=last_week_start,
-    end_1=this_week_start,
-    start_2=this_week_start,
-    end_2=today
+    (last_week_start, this_week_start),
+    (this_week_start, today),
 )
 
-# Find significant changes
+# Find features with significant PSI (distribution shift)
+drifted_features = comparison[comparison['psi'] > 0.1]
+print("Features with significant drift (PSI > 0.1):")
+print(drifted_features[['psi', 'mean_abs_1', 'mean_abs_2']])
+
+# Find significant importance changes
 significant_changes = comparison[
     abs(comparison['pct_delta_mean_abs']) > 20
 ]
-
 print("Features with >20% importance change:")
-print(significant_changes[['mean_abs_1', 'mean_abs_2', 'pct_delta_mean_abs']])
+print(significant_changes[['psi', 'mean_abs_1', 'mean_abs_2', 'pct_delta_mean_abs']])
 ```
 
 ### Ranking Changes

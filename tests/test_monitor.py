@@ -52,14 +52,27 @@ class TestSHAPMonitor:
         ids = [SHAPMonitor._generate_batch_id() for _ in range(100)]
         assert len(set(ids)) == 100
 
-    def test_should_sample_respects_rate(self, explainer, tmp_path):
-        """Sampling should roughly match the configured rate."""
-        monitor = SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=0.5)
+    def test_sampling_respects_rate(self, explainer, tmp_path, regression_data, feature_names):
+        """Sampling should select approximately sample_rate fraction of rows."""
+        X, _ = regression_data
+        sample_rate = 0.5
 
-        samples = [monitor._should_sample() for _ in range(1000)]
-        sample_rate = sum(samples) / len(samples)
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=sample_rate,
+            feature_names=feature_names,
+            random_seed=42,
+        )
+        monitor.log_batch(X)
 
-        assert 0.4 < sample_rate < 0.6
+        # Read back and verify sample count
+        backend = ParquetBackend(tmp_path)
+        today = datetime.now()
+        df = backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        expected_samples = int(len(X) * sample_rate)
+        assert len(df) == expected_samples
 
 
 @pytest.mark.integration
