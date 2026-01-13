@@ -104,6 +104,10 @@ X_df = pd.DataFrame(X, columns=["age", "income", "score"])
 monitor.log_batch(X_df)  # Uses DataFrame column names
 ```
 
+### random_seed (optional, default=42)
+
+Seed for reproducible row sampling. Set to `None` for non-deterministic sampling.
+
 ### backend (optional)
 
 Custom storage backend. If not provided, ParquetBackend is used with `data_dir`.

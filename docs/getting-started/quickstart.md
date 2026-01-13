@@ -85,19 +85,17 @@ print(summary)
 Detect changes in feature importance over time:
 
 ```python
-# Compare this week vs last week
+# Compare last week vs this week
 last_week = today - timedelta(days=14)
 two_weeks_ago = today - timedelta(days=21)
 
 comparison = analyzer.compare_time_periods(
-    start_1=two_weeks_ago,
-    end_1=last_week,
-    start_2=last_week,
-    end_2=today
+    (two_weeks_ago, last_week),  # reference period
+    (last_week, today),          # current period
 )
 
 print(comparison)
-# Shows changes in feature importance rankings and values
+# Shows PSI (drift), feature importance changes, and ranking shifts
 ```
 
 ## Complete Working Example
