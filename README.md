@@ -72,7 +72,7 @@ monitor = SHAPMonitor(
 
 # In your prediction loop
 predictions = model.predict(X[:100])
-monitor.log(X[:100], predictions)
+monitor.log_batch(X[:100], predictions)
 
 # Or compute SHAP values directly
 explanation = monitor.compute(X[:10])
