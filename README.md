@@ -31,7 +31,7 @@ This project uses Poetry for dependency management. Ensure you have Python 3.11 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/shap-monitor.git
+git clone https://github.com/ab93/shap-monitor.git
 cd shap-monitor
 
 # Install with Poetry
