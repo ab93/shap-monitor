@@ -41,7 +41,7 @@ class TestParquetBackend:
         backend = ParquetBackend(tmp_path)
         backend.write(sample_batch)
 
-        expected_path = tmp_path / "2025-12-17" / "test_batch_001.parquet"
+        expected_path = tmp_path / "date=2025-12-17" / "test_batch_001.parquet"
         assert expected_path.exists()
 
     def test_write_creates_valid_parquet(self, tmp_path, sample_batch):
@@ -49,7 +49,7 @@ class TestParquetBackend:
         backend = ParquetBackend(tmp_path)
         backend.write(sample_batch)
 
-        df = pd.read_parquet(tmp_path / "2025-12-17" / "test_batch_001.parquet")
+        df = pd.read_parquet(tmp_path / "date=2025-12-17" / "test_batch_001.parquet")
 
         assert len(df) == 3
         assert "shap_feature_a" in df.columns
@@ -66,8 +66,8 @@ class TestParquetBackend:
         sample_batch.batch_id = "test_batch_002"
         backend.write(sample_batch)
 
-        path1 = tmp_path / "2025-12-17" / "test_batch_001.parquet"
-        path2 = tmp_path / "2025-12-17" / "test_batch_002.parquet"
+        path1 = tmp_path / "date=2025-12-17" / "test_batch_001.parquet"
+        path2 = tmp_path / "date=2025-12-17" / "test_batch_002.parquet"
 
         assert path1.exists()
         assert path2.exists()
@@ -145,5 +145,5 @@ class TestParquetBackend:
         deleted_count = backend.delete(datetime(2025, 12, 17))
 
         assert deleted_count == 1
-        assert not (tmp_path / "2025-12-15").exists()
-        assert (tmp_path / "2025-12-18").exists()
+        assert not (tmp_path / "date=2025-12-15").exists()
+        assert (tmp_path / "date=2025-12-18").exists()
