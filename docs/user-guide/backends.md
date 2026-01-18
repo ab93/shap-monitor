@@ -25,19 +25,33 @@ monitor = SHAPMonitor(
 
 ### Directory Structure
 
-Parquet files are organized by date for efficient querying:
+Parquet files are organized using Hive-style partitioning for efficient querying and compatibility with tools like Dask, Spark, and DuckDB:
 
 ```
 shap_logs/
-├── 2025-12-26/
+├── date=2025-12-26/
 │   ├── uuid-1234.parquet
 │   ├── uuid-5678.parquet
 │   └── uuid-9abc.parquet
-├── 2025-12-27/
+├── date=2025-12-27/
 │   ├── uuid-def0.parquet
 │   └── uuid-1234.parquet
-└── 2025-12-28/
+└── date=2025-12-28/
     └── uuid-5678.parquet
+```
+
+With multiple partition keys (e.g., `partition_by=["date", "model_version"]`):
+
+```
+shap_logs/
+├── date=2025-12-26/
+│   ├── model_version=v1.0/
+│   │   └── uuid-1234.parquet
+│   └── model_version=v2.0/
+│       └── uuid-5678.parquet
+└── date=2025-12-27/
+    └── model_version=v1.0/
+        └── uuid-9abc.parquet
 ```
 
 Each file contains one batch of explanations.
@@ -63,11 +77,16 @@ Example:
 import pandas as pd
 
 # Read a Parquet file directly
-df = pd.read_parquet("shap_logs/2025-12-26/uuid-1234.parquet")
+df = pd.read_parquet("shap_logs/date=2025-12-26/uuid-1234.parquet")
 
 print(df.columns)
 # Index(['timestamp', 'batch_id', 'model_version', 'n_samples', 'base_value',
 #        'shap_MedInc', 'shap_HouseAge', 'MedInc', 'HouseAge', 'prediction'], dtype='object')
+
+# Read entire directory with Hive partitioning (partition columns auto-added)
+df = pd.read_parquet("shap_logs/")
+print(df.columns)
+# Includes 'date' column from Hive partition
 ```
 
 ### Configuration
@@ -75,8 +94,17 @@ print(df.columns)
 ```python
 backend = ParquetBackend(file_dir="/path/to/logs")
 
+# With custom partitioning (default is ["date"])
+backend = ParquetBackend(
+    file_dir="/path/to/logs",
+    partition_by=["date", "model_version"]  # Hive-style: date=.../model_version=.../
+)
+
+# Supported partition keys: "date", "batch_id", "model_version"
+
 # Access configuration
 backend.file_dir  # Path object
+backend.partition_by  # List of partition keys
 ```
 
 ## Backend Operations
@@ -108,7 +136,7 @@ print(f"Wrote to {path}")
 
 ### Read
 
-Read explanations from a date range:
+Read explanations from a date range with optional filtering:
 
 ```python
 from datetime import datetime, timedelta
@@ -121,6 +149,12 @@ df = backend.read(today, today)
 week_ago = today - timedelta(days=7)
 df = backend.read(week_ago, today)
 
+# Filter by model version (uses partition pruning for efficiency)
+df = backend.read(week_ago, today, model_version="v1.0")
+
+# Filter by batch_id
+df = backend.read(today, batch_id="uuid-1234")
+
 print(f"Read {len(df)} samples")
 ```
 
@@ -128,10 +162,12 @@ print(f"Read {len(df)} samples")
 
 - `start_dt`: Start date (inclusive)
 - `end_dt`: End date (inclusive), defaults to `start_dt`
+- `batch_id`: Optional batch ID filter
+- `model_version`: Optional model version filter
 
 **Returns:**
 
-- DataFrame with all samples in the date range
+- DataFrame with all samples matching the filters
 - Empty DataFrame if no data found
 
 ### Delete
@@ -318,8 +354,8 @@ df = backend.read(start_date, end_date)
 
 if df.empty:
     print("No data in date range")
-    # Check what dates have data
-    for date_dir in sorted(backend.file_dir.iterdir()):
+    # Check what dates have data (Hive-style directories)
+    for date_dir in sorted(backend.file_dir.glob("date=*")):
         if date_dir.is_dir():
             print(f"Data available: {date_dir.name}")
 ```
@@ -327,11 +363,11 @@ if df.empty:
 ### Corrupt Files
 
 ```python
-# List all files in partition
+# List all files in partition (Hive-style)
 from pathlib import Path
 
-partition = backend.file_dir / "2025-12-26"
-for file in partition.glob("*.parquet"):
+partition = backend.file_dir / "date=2025-12-26"
+for file in partition.rglob("*.parquet"):
     try:
         df = pd.read_parquet(file)
         print(f"✓ {file.name}: {len(df)} rows")

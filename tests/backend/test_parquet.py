@@ -41,7 +41,7 @@ class TestParquetBackend:
         backend = ParquetBackend(tmp_path)
         backend.write(sample_batch)
 
-        expected_path = tmp_path / "2025-12-17" / "test_batch_001.parquet"
+        expected_path = tmp_path / "date=2025-12-17" / "test_batch_001.parquet"
         assert expected_path.exists()
 
     def test_write_creates_valid_parquet(self, tmp_path, sample_batch):
@@ -49,7 +49,7 @@ class TestParquetBackend:
         backend = ParquetBackend(tmp_path)
         backend.write(sample_batch)
 
-        df = pd.read_parquet(tmp_path / "2025-12-17" / "test_batch_001.parquet")
+        df = pd.read_parquet(tmp_path / "date=2025-12-17" / "test_batch_001.parquet")
 
         assert len(df) == 3
         assert "shap_feature_a" in df.columns
@@ -66,8 +66,8 @@ class TestParquetBackend:
         sample_batch.batch_id = "test_batch_002"
         backend.write(sample_batch)
 
-        path1 = tmp_path / "2025-12-17" / "test_batch_001.parquet"
-        path2 = tmp_path / "2025-12-17" / "test_batch_002.parquet"
+        path1 = tmp_path / "date=2025-12-17" / "test_batch_001.parquet"
+        path2 = tmp_path / "date=2025-12-17" / "test_batch_002.parquet"
 
         assert path1.exists()
         assert path2.exists()
@@ -145,5 +145,58 @@ class TestParquetBackend:
         deleted_count = backend.delete(datetime(2025, 12, 17))
 
         assert deleted_count == 1
-        assert not (tmp_path / "2025-12-15").exists()
-        assert (tmp_path / "2025-12-18").exists()
+        assert not (tmp_path / "date=2025-12-15").exists()
+        assert (tmp_path / "date=2025-12-18").exists()
+
+    def test_invalid_partition_by_raises_error(self, tmp_path):
+        """Invalid partition_by value should raise ValueError."""
+        with pytest.raises(ValueError):
+            ParquetBackend(tmp_path, partition_by=["invalid_key"])
+
+    def test_purge_existing_clears_directory(self, tmp_path, sample_batch):
+        """purge_existing=True should clear existing files."""
+        backend = ParquetBackend(tmp_path)
+        backend.write(sample_batch)
+        assert (tmp_path / "date=2025-12-17").exists()
+
+        # Re-init with purge_existing=True
+        ParquetBackend(tmp_path, purge_existing=True)
+        assert not (tmp_path / "date=2025-12-17").exists()
+
+    def test_read_with_model_version_filter(self, tmp_path):
+        """Read should filter by model_version."""
+        backend = ParquetBackend(tmp_path, partition_by=["date", "model_version"])
+
+        batch_v1 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 17, 10, 0, 0),
+            batch_id="batch_v1",
+            model_version="v1.0",
+            n_samples=2,
+            base_values=np.array([0.5, 0.5]),
+            shap_values={"feat": np.array([0.1, 0.2])},
+        )
+        batch_v2 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 17, 10, 0, 0),
+            batch_id="batch_v2",
+            model_version="v2.0",
+            n_samples=2,
+            base_values=np.array([0.5, 0.5]),
+            shap_values={"feat": np.array([0.3, 0.4])},
+        )
+        backend.write(batch_v1)
+        backend.write(batch_v2)
+
+        df = backend.read(datetime(2025, 12, 17), model_version="v1.0")
+
+        assert len(df) == 2
+        assert all(df["model_version"] == "v1.0")
+
+    def test_multi_partition_directory_structure(self, tmp_path, sample_batch):
+        """Multiple partition keys should create nested Hive-style directories."""
+        backend = ParquetBackend(tmp_path, partition_by=["date", "model_version"])
+        backend.write(sample_batch)
+
+        expected_path = (
+            tmp_path / "date=2025-12-17" / "model_version=v1.0" / "test_batch_001.parquet"
+        )
+        assert expected_path.exists()
