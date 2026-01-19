@@ -31,7 +31,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with dev -v
+        run: poetry install --no-interaction --only main,dev -v
         timeout-minutes: 15
 
       - name: Downgrade to NumPy 1.x
