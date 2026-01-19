@@ -117,9 +117,14 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --with dev -v
+      - name: Install dependencies (re-resolve without lock file)
+        run: |
+          rm poetry.lock
+          poetry install --no-interaction --with dev -v
         timeout-minutes: 15
+
+      - name: Verify numpy version
+        run: poetry run python -c "import numpy; print(f'numpy version: {numpy.__version__}')"
 
       - name: Run tests
         run: poetry run pytest tests/
