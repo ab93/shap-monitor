@@ -36,7 +36,8 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "shap (>=0.45.0,<0.51.0)",
-    "numpy (>=2.0.0,<3.0.0)",
+    "numpy (>=1.26.0,<3.0.0); python_version < '3.13'",
+    "numpy (>=2.0.0,<3.0.0); python_version >= '3.13'",
     "pandas (>=2.0.0,<3.0.0)",
     "pyarrow (>=17.0.0,<23.0.0)",
 ]
