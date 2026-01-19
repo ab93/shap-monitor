@@ -124,7 +124,7 @@ jobs:
         timeout-minutes: 15
 
       - name: Verify numpy version
-        run: poetry run python -c "import numpy; print(f'numpy version: {numpy.__version__}')"
+        run: poetry run python -c "import numpy; print('numpy version:', numpy.__version__)"
 
       - name: Run tests
         run: poetry run pytest tests/
