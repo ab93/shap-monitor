@@ -49,25 +49,22 @@ class SHAPAnalyzer:
         """Get the backend for retrieving explanations."""
         return self._backend
 
-    def fetch_shap_values(self, start_dt: datetime | date, end_dt: datetime | date) -> DFrameLike:
+    def fetch_shap_values(self, **kwargs) -> DFrameLike:
         """Fetch raw SHAP values from the backend within a date range.
 
         Parameters
         ----------
-        start_dt : datetime | date
-            Start of the date range (inclusive).
-        end_dt : datetime | date
-            End of the date range (inclusive).
+        kwargs: Backend read parameters
 
         Returns
         -------
         DataFrame
             Raw SHAP values indexed by timestamp.
         """
-        df = self._backend.read(start_dt, end_dt)
+        df = self._backend.read(**kwargs)
 
         if df.empty:
-            _logger.warning("No data found for date range %s to %s", start_dt, end_dt)
+            _logger.warning("No data found for kwargs: %s", kwargs)
             return pd.DataFrame()
 
         return df.filter(like="shap_")
@@ -94,8 +91,10 @@ class SHAPAnalyzer:
 
     def summary(
         self,
-        start_dt: datetime | date,
-        end_dt: datetime | date,
+        start_dt: datetime | date | None = None,
+        end_dt: datetime | date | None = None,
+        batch_id: str | None = None,
+        model_version: str | None = None,
         sort_by: str = "mean_abs",
     ) -> DFrameLike:
         """Compute summary statistics for SHAP values in a date range.
@@ -129,9 +128,9 @@ class SHAPAnalyzer:
         -----
         Features with mean_abs below `min_abs_shap` threshold are excluded.
         """
-        shap_df = self.fetch_shap_values(start_dt, end_dt).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
+        shap_df = self.fetch_shap_values(
+            start_dt=start_dt, end_dt=end_dt, batch_id=batch_id, model_version=model_version
+        ).rename(columns=lambda col: col.replace("shap_", ""))
         result = self._construct_summary(shap_df)
 
         if sort_by not in result.columns:
@@ -152,71 +151,30 @@ class SHAPAnalyzer:
             psi[i] = population_stability_index(shap_df_ref[feature], shap_df_curr[feature])
         return pd.Series(psi, index=common_features, name="psi")
 
-    def compare_time_periods(
+    def _compare_shap_dataframes(
         self,
-        period_ref: Period,
-        period_curr: Period,
+        shap_df_ref: DFrameLike,
+        shap_df_curr: DFrameLike,
         sort_by: str = "psi",
     ) -> DFrameLike:
-        """Compare SHAP explanations between two time periods.
-
-        Useful for detecting feature importance drift, ranking changes,
-        and sign flips in model behavior over time.
+        """Compare two SHAP DataFrames and compute comparison statistics.
 
         Parameters
         ----------
-        period_ref : Period
-            Tuple of (start_dt, end_dt) defining the reference date range (both inclusive).
-        period_curr : Period
-            Tuple of (start_dt, end_dt) defining the current date range (both inclusive).
+        shap_df_ref : DFrameLike
+            Reference SHAP values DataFrame.
+        shap_df_curr : DFrameLike
+            Current SHAP values DataFrame.
         sort_by : str, optional
-            Column to sort results by (default: 'mean_abs_1').
+            Column to sort results by (default: 'psi').
 
         Returns
         -------
-        DataFrame
+        DFrameLike
             Comparison statistics indexed by feature name.
-
-            Columns:
-                - psi: Population Stability Index between periods
-                - mean_abs_1, mean_abs_2: Feature importance per period
-                - delta_mean_abs: Absolute change (period_2 - period_1)
-                - pct_delta_mean_abs: Percentage change from period_1
-                - mean_1, mean_2: Mean SHAP value (direction) per period
-                - rank_1, rank_2: Feature importance rank per period
-                - delta_rank: Rank change (positive = less important)
-                - rank_change: 'increased', 'decreased', or 'no_change'
-                - sign_flip: True if contribution direction changed
-
-            Attributes:
-                - n_samples_1: Sample count in period 1
-                - n_samples_2: Sample count in period 2
-
-        Notes
-        -----
-        Features with mean_abs below `min_abs_shap` threshold are excluded.
-        Uses outer join, so features appearing in only one period will have NaN.
-
-        Below is a guideline for interpreting PSI values:
-
-          | PSI Value  | Interpretation              |
-          |------------|-----------------------------|
-          | 0          | Identical distributions     |
-          | < 0.1      | No significant shift        |
-          | 0.1 - 0.25 | Moderate shift, investigate |
-          | 0.25 - 0.5 | Significant shift           |
-          | > 0.5      | Severe shift                |
-
-
         """
-        shap_df_ref = self.fetch_shap_values(period_ref[0], period_ref[1]).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
-        shap_df_curr = self.fetch_shap_values(period_curr[0], period_curr[1]).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
         if shap_df_ref.empty and shap_df_curr.empty:
-            _logger.warning("No data found for either time period")
+            _logger.warning("No data found for either period")
             return pd.DataFrame()
 
         # Calculate PSI
@@ -289,6 +247,103 @@ class SHAPAnalyzer:
             )
 
         return comparison_df.sort_values(sort_by, ascending=False)
+
+    def compare_time_periods(
+        self,
+        period_ref: Period,
+        period_curr: Period,
+        sort_by: str = "psi",
+    ) -> DFrameLike:
+        """Compare SHAP explanations between two time periods.
+
+        Useful for detecting feature importance drift, ranking changes,
+        and sign flips in model behavior over time.
+
+        Parameters
+        ----------
+        period_ref : Period
+            Tuple of (start_dt, end_dt) defining the reference date range (both inclusive).
+        period_curr : Period
+            Tuple of (start_dt, end_dt) defining the current date range (both inclusive).
+        sort_by : str, optional
+            Column to sort results by (default: 'mean_abs_1').
+
+        Returns
+        -------
+        DataFrame
+            Comparison statistics indexed by feature name.
+
+            Columns:
+                - psi: Population Stability Index between periods
+                - mean_abs_1, mean_abs_2: Feature importance per period
+                - delta_mean_abs: Absolute change (period_2 - period_1)
+                - pct_delta_mean_abs: Percentage change from period_1
+                - mean_1, mean_2: Mean SHAP value (direction) per period
+                - rank_1, rank_2: Feature importance rank per period
+                - delta_rank: Rank change (positive = less important)
+                - rank_change: 'increased', 'decreased', or 'no_change'
+                - sign_flip: True if contribution direction changed
+
+            Attributes:
+                - n_samples_1: Sample count in period 1
+                - n_samples_2: Sample count in period 2
+
+        Notes
+        -----
+        Features with mean_abs below `min_abs_shap` threshold are excluded.
+        Uses outer join, so features appearing in only one period will have NaN.
+
+        Below is a guideline for interpreting PSI values:
+
+          | PSI Value  | Interpretation              |
+          |------------|-----------------------------|
+          | 0          | Identical distributions     |
+          | < 0.1      | No significant shift        |
+          | 0.1 - 0.25 | Moderate shift, investigate |
+          | 0.25 - 0.5 | Significant shift           |
+          | > 0.5      | Severe shift                |
+
+
+        """
+        shap_df_ref = self.fetch_shap_values(start_dt=period_ref[0], end_dt=period_ref[1]).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+        shap_df_curr = self.fetch_shap_values(
+            start_dt=period_curr[0], end_dt=period_curr[1]
+        ).rename(columns=lambda col: col.replace("shap_", ""))
+
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by)
+
+    def compare_batches(
+        self,
+        batch_ref: str,
+        batch_curr: str,
+        sort_by: str = "psi",
+    ) -> DFrameLike:
+        """Compare SHAP explanations between two batches.
+
+        Parameters
+        ----------
+        batch_ref : str
+            Identifier for the first batch.
+        batch_curr : str
+            Identifier for the second batch.
+        sort_by : str, optional
+            Column to sort results by (default: 'psi').
+
+        Returns
+        -------
+        DataFrame
+            Comparison of SHAP statistics between the two batches.
+        """
+        shap_df_ref = self.fetch_shap_values(batch_id=batch_ref).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+        shap_df_curr = self.fetch_shap_values(batch_id=batch_curr).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by)
 
     def compare_versions(self, *model_versions: str):
         """Compare SHAP explanations across different model versions.

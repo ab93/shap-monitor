@@ -101,7 +101,9 @@ class SHAPMonitor:
         """Generate a unique batch ID."""
         return str(uuid.uuid4())
 
-    def log_batch(self, X: ArrayLike, y: ArrayLike | None = None) -> None:
+    def log_batch(
+        self, X: ArrayLike, y: ArrayLike | None = None, batch_id: str | None = None
+    ) -> None:
         """Log SHAP explanations for a batch of predictions.
 
         Parameters
@@ -111,6 +113,9 @@ class SHAPMonitor:
         y : ArrayLike, optional
             Model predictions for the batch. If not provided, predictions
             will not be stored in the explanation record.
+        batch_id : str, optional
+            Unique identifier for the batch. If not provided, a new UUID
+            will be generated.
         """
         if not self._feature_names:
             if isinstance(X, pd.DataFrame):
@@ -118,10 +123,23 @@ class SHAPMonitor:
             else:
                 self._feature_names = [f"feat_{i}" for i in range(X.shape[1])]
 
-        X = np.asarray(X, dtype=np.float32)
-        X = self._rng.choice(X, size=int(len(X) * self._sample_rate), replace=False)
+        # Sample the data
+        n_samples = max(1, int(len(X) * self._sample_rate))
+        sample_indices = self._rng.choice(len(X), size=n_samples, replace=False)
 
-        batch_id = self._generate_batch_id()
+        if isinstance(X, pd.DataFrame):
+            X = X.iloc[sample_indices].reset_index(drop=True)
+        else:
+            X = np.asarray(X)
+            X = X[sample_indices]
+
+        # Sample y to match X if provided
+        if y is not None:
+            y = np.asarray(y)
+            y = y[sample_indices]
+
+        if not batch_id:
+            batch_id = self._generate_batch_id()
 
         # Compute SHAP values for the batch
         explanations = self.compute(X)

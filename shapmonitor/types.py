@@ -38,8 +38,10 @@ class Backend(Protocol):
 
     def read(
         self,
-        start_dt: datetime,
-        end_dt: datetime,
+        start_dt: datetime | date | None = None,
+        end_dt: datetime | date | None = None,
+        batch_id: str | None = None,
+        model_version: str | None = None,
     ) -> DFrameLike:
         """Read data from the backend."""
         ...
