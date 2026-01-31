@@ -73,7 +73,7 @@ class ParquetBackend(BaseBackend):
 
     def read(
         self,
-        start_dt: datetime | date,
+        start_dt: datetime | date | None = None,
         end_dt: datetime | date | None = None,
         batch_id: str | None = None,
         model_version: str | None = None,
@@ -97,19 +97,30 @@ class ParquetBackend(BaseBackend):
         -------
         DataFrame
             A DataFrame containing the explanations within the specified range.
+
+        Raises
+        ------
+        ValueError
+            If no filters are provided.
         """
         filters = []
 
-        start_date = start_dt.date().strftime("%Y-%m-%d")
-        end_date = end_dt.date().strftime("%Y-%m-%d") if end_dt else start_date
+        if start_dt:
+            start_date = start_dt.date().strftime("%Y-%m-%d")
+            end_date = end_dt.date().strftime("%Y-%m-%d") if end_dt else start_date
 
-        filters.append(("date", ">=", start_date))
-        filters.append(("date", "<=", end_date))
+            filters.append(("date", ">=", start_date))
+            filters.append(("date", "<=", end_date))
 
         if batch_id:
             filters.append(("batch_id", "==", batch_id))
         if model_version:
             filters.append(("model_version", "==", model_version))
+
+        if not filters:
+            raise ValueError(
+                "At least one filter (date range, batch_id, model_version) must be provided."
+            )
 
         _logger.debug("Reading data with filters: %s", filters)
 
@@ -149,6 +160,7 @@ class ParquetBackend(BaseBackend):
         _logger.info("Wrote batch %s to %s", batch.batch_id, file_path)
         return file_path
 
+    # TODO: Allow deletion by batch_id or model_version
     def delete(self, cutoff_dt: datetime | date) -> int:
         """
         Delete Parquet files containing explanations before a specified datetime.

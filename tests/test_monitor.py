@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import numpy as np
+import pandas as pd
 import pytest
 import shap
 from sklearn.ensemble import RandomForestRegressor
@@ -73,6 +75,84 @@ class TestSHAPMonitor:
 
         expected_samples = int(len(X) * sample_rate)
         assert len(df) == expected_samples
+
+    def test_sampling_minimum_one_sample(self, explainer, tmp_path, regression_data, feature_names):
+        """Sampling should always select at least one sample even with very small sample_rate."""
+        X, _ = regression_data
+        sample_rate = 0.001  # Very small rate that would give 0 samples for 100 rows
+
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=sample_rate,
+            feature_names=feature_names,
+            random_seed=42,
+        )
+        monitor.log_batch(X)
+
+        backend = ParquetBackend(tmp_path)
+        today = datetime.now()
+        df = backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        # Should have at least 1 sample
+        assert len(df) >= 1
+
+    def test_predictions_sampled_with_features(
+        self, explainer, tmp_path, regression_data, feature_names
+    ):
+        """Predictions (y) should be sampled alongside features (X)."""
+        X, y = regression_data
+        sample_rate = 0.5
+
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=sample_rate,
+            feature_names=feature_names,
+            random_seed=42,
+        )
+        monitor.log_batch(X, y=y)
+
+        backend = ParquetBackend(tmp_path)
+        today = datetime.now()
+        df = backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        expected_samples = int(len(X) * sample_rate)
+        assert len(df) == expected_samples
+        # Check that predictions column exists and has correct length
+        assert "prediction" in df.columns
+        assert df["prediction"].notna().sum() == expected_samples
+
+    def test_dataframe_input_preserves_categorical(self, explainer, tmp_path, feature_names):
+        """DataFrame input with categorical columns should be handled correctly."""
+        # Create a DataFrame with mixed types including categorical
+        n_samples = 50
+        df_input = pd.DataFrame(
+            {
+                "feat_0": np.random.randn(n_samples),
+                "feat_1": np.random.randn(n_samples),
+                "feat_2": np.random.randn(n_samples),
+                "feat_3": np.random.randn(n_samples),
+                "feat_4": np.random.randn(n_samples),
+            }
+        )
+
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=1.0,
+            feature_names=feature_names,
+            random_seed=42,
+        )
+
+        # Should not raise an error
+        monitor.log_batch(df_input)
+
+        backend = ParquetBackend(tmp_path)
+        today = datetime.now()
+        df = backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        assert len(df) == n_samples
 
 
 @pytest.mark.integration
