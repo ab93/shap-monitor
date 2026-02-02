@@ -335,6 +335,36 @@ class SHAPAnalyzer:
         -------
         DataFrame
             Comparison of SHAP statistics between the two batches.
+
+            Columns:
+                - psi: Population Stability Index between periods
+                - mean_abs_1, mean_abs_2: Feature importance per period
+                - delta_mean_abs: Absolute change (period_2 - period_1)
+                - pct_delta_mean_abs: Percentage change from period_1
+                - mean_1, mean_2: Mean SHAP value (direction) per period
+                - rank_1, rank_2: Feature importance rank per period
+                - delta_rank: Rank change (positive = less important)
+                - rank_change: 'increased', 'decreased', or 'no_change'
+                - sign_flip: True if contribution direction changed
+
+            Attributes:
+                - n_samples_1: Sample count in period 1
+                - n_samples_2: Sample count in period 2
+
+        Notes
+        -----
+        Features with mean_abs below `min_abs_shap` threshold are excluded.
+        Uses outer join, so features appearing in only one period will have NaN.
+
+        Below is a guideline for interpreting PSI values:
+
+          | PSI Value  | Interpretation              |
+          |------------|-----------------------------|
+          | 0          | Identical distributions     |
+          | < 0.1      | No significant shift        |
+          | 0.1 - 0.25 | Moderate shift, investigate |
+          | 0.25 - 0.5 | Significant shift           |
+          | > 0.5      | Severe shift                |
         """
         shap_df_ref = self.fetch_shap_values(batch_id=batch_ref).rename(
             columns=lambda col: col.replace("shap_", "")
@@ -345,17 +375,56 @@ class SHAPAnalyzer:
 
         return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by)
 
-    def compare_versions(self, *model_versions: str):
+    def compare_versions(self, model_version_ref: str, model_version_curr: str) -> DFrameLike:
         """Compare SHAP explanations across different model versions.
 
         Parameters
         ----------
-        model_versions : str
-            Model version identifiers to compare.
+        model_version_ref : str
+            Reference model version identifier.
+        model_version_curr : str
+            Current model version identifier.
 
         Returns
         -------
         DataFrame
             Comparison of SHAP statistics across model versions.
+
+            Columns:
+                - psi: Population Stability Index between periods
+                - mean_abs_1, mean_abs_2: Feature importance per period
+                - delta_mean_abs: Absolute change (period_2 - period_1)
+                - pct_delta_mean_abs: Percentage change from period_1
+                - mean_1, mean_2: Mean SHAP value (direction) per period
+                - rank_1, rank_2: Feature importance rank per period
+                - delta_rank: Rank change (positive = less important)
+                - rank_change: 'increased', 'decreased', or 'no_change'
+                - sign_flip: True if contribution direction changed
+
+            Attributes:
+                - n_samples_1: Sample count in period 1
+                - n_samples_2: Sample count in period 2
+
+        Notes
+        -----
+        Features with mean_abs below `min_abs_shap` threshold are excluded.
+        Uses outer join, so features appearing in only one period will have NaN.
+
+        Below is a guideline for interpreting PSI values:
+
+          | PSI Value  | Interpretation              |
+          |------------|-----------------------------|
+          | 0          | Identical distributions     |
+          | < 0.1      | No significant shift        |
+          | 0.1 - 0.25 | Moderate shift, investigate |
+          | 0.25 - 0.5 | Significant shift           |
+          | > 0.5      | Severe shift                |
         """
-        raise NotImplementedError("Method not yet implemented.")
+        shap_df_ref = self.fetch_shap_values(model_version=model_version_ref).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+        shap_df_curr = self.fetch_shap_values(model_version=model_version_curr).rename(
+            columns=lambda col: col.replace("shap_", "")
+        )
+
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr)
