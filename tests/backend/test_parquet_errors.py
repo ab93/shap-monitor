@@ -17,9 +17,7 @@ class TestParquetBackendErrors:
         df = backend.read(datetime(2025, 1, 1))
         assert df.empty
 
-    @pytest.mark.skipif(
-        sys.platform == "win32", reason="Permission tests not reliable on Windows"
-    )
+    @pytest.mark.skipif(sys.platform == "win32", reason="Permission tests not reliable on Windows")
     def test_read_permission_error_propagates(self, tmp_path):
         """Permission errors should propagate, not be swallowed."""
         backend = ParquetBackend(tmp_path)
