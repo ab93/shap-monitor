@@ -5,6 +5,7 @@ from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
+import pyarrow
 
 from shapmonitor.backends._base import BaseBackend
 from shapmonitor.types import PathLike, ExplanationBatch, DFrameLike
@@ -126,9 +127,19 @@ class ParquetBackend(BaseBackend):
 
         try:
             return pd.read_parquet(self._file_dir, filters=filters)
-        except Exception as e:
-            _logger.error("Error reading Parquet files: %s", e)
+        except FileNotFoundError:
+            _logger.warning(
+                "No Parquet files found in directory: %s with filters: %s",
+                self._file_dir,
+                filters,
+            )
             return pd.DataFrame()
+        except pyarrow.lib.ArrowInvalid as e:
+            # Filter matched no rows - expected
+            if "No match" in str(e) or "empty" in str(e).lower():
+                _logger.debug("No data matched filters: %s", filters)
+                return pd.DataFrame()
+            raise
 
     def write(self, batch: ExplanationBatch) -> Path:
         """
