@@ -101,6 +101,39 @@ class SHAPMonitor:
         """Generate a unique batch ID."""
         return str(uuid.uuid4())
 
+    def log_shap(self, shap_values: ExplanationLike, batch_id: str | None = None) -> None:
+        """Log SHAP explanations for a single batch.
+
+        Parameters
+        ----------
+        shap_values : ExplanationLike
+            SHAP explanation object containing SHAP values and base values.
+        batch_id : str, optional
+            Unique identifier for the batch. If not provided, a new UUID
+            will be generated.
+        """
+        if not self._feature_names:
+            self._feature_names = [f"feat_{i}" for i in range(shap_values.values.shape[1])]
+
+        if not batch_id:
+            batch_id = self._generate_batch_id()
+
+        explanation_batch = ExplanationBatch(
+            timestamp=datetime.now(),
+            batch_id=batch_id,
+            model_version=self._model_version,
+            n_samples=shap_values.values.shape[0],
+            base_values=shap_values.base_values,
+            shap_values={
+                feat: shap_values.values[:, idx] for idx, feat in enumerate(self._feature_names)
+            },
+            feature_values=None,  # Feature values are not stored in this method
+            predictions=None,  # Predictions are not stored in this method
+        )
+
+        path = self._backend.write(explanation_batch)
+        _logger.info("Logged SHAP explanations for batch_id: %s in path: %s", batch_id, path)
+
     def log_batch(
         self, X: ArrayLike, y: ArrayLike | None = None, batch_id: str | None = None
     ) -> None:
