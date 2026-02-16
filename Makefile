@@ -11,6 +11,7 @@ clean:
 	find . -type d -name '__pycache__' -delete
 
 setup:
+	poetry lock
 	poetry install --all-groups
 
 lint:

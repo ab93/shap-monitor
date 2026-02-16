@@ -3,7 +3,7 @@
 Production ML explainability toolkit for monitoring SHAP values over time. Track how your model's explanations evolve, detect explanation drift, and maintain interpretability at scale.
 
 ![Work in Progress](https://img.shields.io/badge/status-work%20in%20progress-yellow)
-![Python Version](https://img.shields.io/badge/python-3.11+-blue)
+![Python](https://img.shields.io/badge/python-3.10_|_3.11_|_3.12_|_3.13_|_3.14-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 [![codecov](https://codecov.io/gh/ab93/shap-monitor/branch/main/graph/badge.svg)](https://codecov.io/gh/ab93/shap-monitor)
 
@@ -27,7 +27,7 @@ pip install shap-monitor
 
 ### Installation from Source
 
-This project uses Poetry for dependency management. Ensure you have Python 3.11 or higher installed.
+This project uses Poetry for dependency management. Ensure you have Python 3.10 or higher installed.
 
 ```bash
 # Clone the repository
