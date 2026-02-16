@@ -123,6 +123,37 @@ class TestSHAPMonitor:
         assert "prediction" in df.columns
         assert df["prediction"].notna().sum() == expected_samples
 
+    def test_log_shap_writes_to_backend(self, monitor, sample_features, feature_names):
+        """log_shap should write pre-computed SHAP values to backend."""
+        explanation = monitor.compute(sample_features)
+        monitor.log_shap(explanation)
+
+        today = datetime.now()
+        df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        assert len(df) == 2
+        for feat in feature_names:
+            assert f"shap_{feat}" in df.columns
+        # feature values and predictions should not be present
+        assert "prediction" not in df.columns
+        assert all(f"feat_{feat}" not in df.columns for feat in feature_names)
+
+    def test_log_shap_auto_generates_feature_names(self, explainer, tmp_path, sample_features):
+        """log_shap should generate feature names when none are provided."""
+        monitor = SHAPMonitor(
+            explainer=explainer,
+            data_dir=tmp_path,
+            sample_rate=1.0,
+        )
+        explanation = monitor.compute(sample_features)
+        monitor.log_shap(explanation)
+
+        assert monitor.feature_names == [f"feat_{i}" for i in range(5)]
+
+        today = datetime.now()
+        df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
+        assert len(df) == 2
+
     def test_dataframe_input_preserves_categorical(self, explainer, tmp_path, feature_names):
         """DataFrame input with categorical columns should be handled correctly."""
         # Create a DataFrame with mixed types including categorical
