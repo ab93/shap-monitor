@@ -154,6 +154,50 @@ class TestSHAPMonitor:
         df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
         assert len(df) == 2
 
+    def test_log_shap_numpy_with_base_values(self, monitor, sample_features, feature_names):
+        """log_shap should accept a raw numpy array with explicit base_values."""
+        explanation = monitor.compute(sample_features)
+        shap_array = explanation.values
+        base_val = explanation.base_values
+
+        monitor.log_shap(shap_array, base_values=base_val)
+
+        today = datetime.now()
+        df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        assert len(df) == 2
+        for feat in feature_names:
+            assert f"shap_{feat}" in df.columns
+        assert df["base_value"].notna().all()
+
+    def test_log_shap_numpy_scalar_base_value(self, monitor, sample_features, feature_names):
+        """log_shap should broadcast a scalar base_value to all samples."""
+        explanation = monitor.compute(sample_features)
+        shap_array = explanation.values
+
+        monitor.log_shap(shap_array, base_values=0.5)
+
+        today = datetime.now()
+        df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        assert len(df) == 2
+        np.testing.assert_allclose(df["base_value"].values, 0.5, atol=1e-6)
+
+    def test_log_shap_numpy_without_base_values(self, monitor, sample_features, feature_names):
+        """log_shap should fill base_value with NaN when base_values is omitted."""
+        explanation = monitor.compute(sample_features)
+        shap_array = explanation.values
+
+        monitor.log_shap(shap_array)
+
+        today = datetime.now()
+        df = monitor.backend.read(today - timedelta(days=1), today + timedelta(days=1))
+
+        assert len(df) == 2
+        for feat in feature_names:
+            assert f"shap_{feat}" in df.columns
+        assert df["base_value"].isna().all()
+
     def test_dataframe_input_preserves_categorical(self, explainer, tmp_path, feature_names):
         """DataFrame input with categorical columns should be handled correctly."""
         # Create a DataFrame with mixed types including categorical
