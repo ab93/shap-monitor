@@ -36,6 +36,29 @@ class TestSHAPMonitor:
             feature_names=feature_names,
         )
 
+    def test_init_no_data_dir_no_backend_raises(self):
+        """SHAPMonitor should raise ValueError if neither data_dir nor backend is provided."""
+        with pytest.raises(ValueError, match="Either data_dir or backend must be provided"):
+            SHAPMonitor()
+
+    def test_init_both_data_dir_and_backend_raises(self, explainer, tmp_path):
+        """SHAPMonitor should raise ValueError if both data_dir and backend are provided."""
+        backend = ParquetBackend(tmp_path)
+        with pytest.raises(ValueError, match="Provide only one of data_dir or backend"):
+            SHAPMonitor(explainer=explainer, data_dir=tmp_path, backend=backend)
+
+    def test_init_with_custom_backend(self, explainer, tmp_path):
+        """SHAPMonitor should accept a pre-constructed backend instance."""
+        backend = ParquetBackend(tmp_path)
+        monitor = SHAPMonitor(explainer=explainer, backend=backend)
+        assert monitor.backend is backend
+
+    def test_properties(self, monitor, explainer):
+        """SHAPMonitor properties should return their configured values."""
+        assert monitor.sample_rate == 1.0
+        assert monitor.model_version == "test-v1"
+        assert monitor.explainer is not None
+
     def test_creates_data_directory(self, explainer, tmp_path):
         """Monitor should create data directory if it doesn't exist."""
         data_dir = tmp_path / "new_dir"
@@ -197,6 +220,37 @@ class TestSHAPMonitor:
         for feat in feature_names:
             assert f"shap_{feat}" in df.columns
         assert df["base_value"].isna().all()
+
+    def test_log_batch_no_explainer_raises(self, tmp_path):
+        """log_batch should raise ValueError when no explainer is configured."""
+        monitor = SHAPMonitor(data_dir=tmp_path)
+        with pytest.raises(ValueError, match="Explainer is not set"):
+            monitor.log_batch(np.array([[1.0, 2.0, 3.0, 4.0, 5.0]]))
+
+    def test_compute_no_explainer_raises(self, tmp_path, sample_features):
+        """compute should raise ValueError when no explainer is configured."""
+        monitor = SHAPMonitor(data_dir=tmp_path)
+        with pytest.raises(ValueError, match="Explainer is not set"):
+            monitor.compute(sample_features)
+
+    def test_log_batch_auto_detects_feature_names_from_array(
+        self, explainer, tmp_path, regression_data
+    ):
+        """log_batch should auto-generate feature names when not provided and input is an array."""
+        X, _ = regression_data
+        monitor = SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=1.0)
+        monitor.log_batch(X[:5])
+        assert monitor.feature_names == [f"feat_{i}" for i in range(X.shape[1])]
+
+    def test_log_batch_auto_detects_feature_names_from_dataframe(
+        self, explainer, tmp_path, regression_data, feature_names
+    ):
+        """log_batch should extract feature names from DataFrame columns when not pre-set."""
+        X, _ = regression_data
+        df = pd.DataFrame(X, columns=feature_names)
+        monitor = SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=1.0)
+        monitor.log_batch(df)
+        assert monitor.feature_names == feature_names
 
     def test_dataframe_input_preserves_categorical(self, explainer, tmp_path, feature_names):
         """DataFrame input with categorical columns should be handled correctly."""
