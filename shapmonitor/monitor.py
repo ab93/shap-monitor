@@ -45,7 +45,7 @@ class SHAPMonitor:
 
     def __init__(
         self,
-        explainer: ExplainerLike,
+        explainer: ExplainerLike | None = None,
         data_dir: PathLike | None = None,
         sample_rate: float = 0.1,
         model_version: str = "unknown",
@@ -101,19 +101,43 @@ class SHAPMonitor:
         """Generate a unique batch ID."""
         return str(uuid.uuid4())
 
-    def log_shap(self, shap_values: ExplanationLike, batch_id: str | None = None) -> None:
+    def log_shap(
+        self,
+        shap_values: ExplanationLike | ArrayLike,
+        base_values: ArrayLike | float | None = None,
+        batch_id: str | None = None,
+    ) -> None:
         """Log SHAP explanations for a single batch.
 
         Parameters
         ----------
-        shap_values : ExplanationLike
-            SHAP explanation object containing SHAP values and base values.
+        shap_values : ExplanationLike | ArrayLike
+            A SHAP Explanation object, or a 2-D numpy array of SHAP values
+            (n_samples x n_features).
+        base_values : ArrayLike | float | None, optional
+            Base (expected) values. Ignored when "shap_values" is an
+            Explanation object. When "shap_values" is a raw array and
+            this is omitted, the base_value column will be filled with NaN.
         batch_id : str, optional
             Unique identifier for the batch. If not provided, a new UUID
             will be generated.
         """
+        import shap
+
+        if isinstance(shap_values, shap.Explanation):
+            values_arr = np.asarray(shap_values.values, dtype=np.float32)
+            base_arr = np.asarray(shap_values.base_values, dtype=np.float32)
+        else:
+            values_arr = np.asarray(shap_values, dtype=np.float32)
+            if base_values is None:
+                base_arr = np.full(values_arr.shape[0], np.nan, dtype=np.float32)
+            else:
+                base_arr = np.atleast_1d(np.asarray(base_values, dtype=np.float32))
+                if base_arr.ndim == 0 or (base_arr.ndim == 1 and base_arr.shape[0] == 1):
+                    base_arr = np.full(values_arr.shape[0], base_arr.item(), dtype=np.float32)
+
         if not self._feature_names:
-            self._feature_names = [f"feat_{i}" for i in range(shap_values.values.shape[1])]
+            self._feature_names = [f"feat_{i}" for i in range(values_arr.shape[1])]
 
         if not batch_id:
             batch_id = self._generate_batch_id()
@@ -122,13 +146,11 @@ class SHAPMonitor:
             timestamp=datetime.now(),
             batch_id=batch_id,
             model_version=self._model_version,
-            n_samples=shap_values.values.shape[0],
-            base_values=shap_values.base_values,
-            shap_values={
-                feat: shap_values.values[:, idx] for idx, feat in enumerate(self._feature_names)
-            },
-            feature_values=None,  # Feature values are not stored in this method
-            predictions=None,  # Predictions are not stored in this method
+            n_samples=values_arr.shape[0],
+            base_values=base_arr,
+            shap_values={feat: values_arr[:, idx] for idx, feat in enumerate(self._feature_names)},
+            feature_values=None,
+            predictions=None,
         )
 
         path = self._backend.write(explanation_batch)
@@ -150,6 +172,11 @@ class SHAPMonitor:
             Unique identifier for the batch. If not provided, a new UUID
             will be generated.
         """
+        if self._explainer is None:
+            raise ValueError(
+                "Explainer is not set. Please set the explainer when initializing the monitor."
+            )
+
         if not self._feature_names:
             if isinstance(X, pd.DataFrame):
                 self._feature_names = X.columns.tolist()
@@ -216,4 +243,9 @@ class SHAPMonitor:
         Shap explanation object
             The SHAP explanation object containing SHAP values.
         """
+        if self._explainer is None:
+            raise ValueError(
+                "Explainer is not set. Please set the explainer when initializing the monitor."
+            )
+
         return self._explainer(X)

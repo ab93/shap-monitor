@@ -15,14 +15,14 @@ class BaseBackend(metaclass=ABCMeta):
         end_dt: datetime,
     ) -> DFrameLike:
         """Read data from the backend."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def write(self, batch: ExplanationBatch) -> None:
         """Write data to the backend."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def delete(self, cutoff_dt: datetime) -> None:
         """Delete data before a certain datetime."""
-        pass
+        pass  # pragma: no cover

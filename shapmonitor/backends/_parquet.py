@@ -65,7 +65,9 @@ class ParquetBackend(BaseBackend):
         self._file_dir.mkdir(parents=True, exist_ok=True)
 
         if not self._file_dir.is_dir():
-            raise NotADirectoryError(f"{self._file_dir} is not a valid directory.")
+            raise NotADirectoryError(
+                f"{self._file_dir} is not a valid directory."
+            )  # pragma: no cover
 
     @property
     def file_dir(self) -> Path:
@@ -236,7 +238,7 @@ class ParquetBackend(BaseBackend):
             elif key == "model_version":
                 value = batch.model_version
             else:
-                raise ValueError(f"Unsupported partition key: {key}")
+                raise ValueError(f"Unsupported partition key: {key}")  # pragma: no cover
             partition_dirs.append(f"{key}={value}")
 
         return self._file_dir.joinpath(*partition_dirs, f"{batch.batch_id}.parquet")

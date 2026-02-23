@@ -43,6 +43,20 @@ def populated_backend(tmp_path):
     return backend
 
 
+class TestAnalyzerProperties:
+    """Tests for SHAPAnalyzer properties."""
+
+    def test_min_abs_shap_property(self, populated_backend):
+        """min_abs_shap property should return the configured threshold."""
+        analyzer = SHAPAnalyzer(populated_backend, min_abs_shap=0.05)
+        assert analyzer.min_abs_shap == 0.05
+
+    def test_backend_property(self, populated_backend):
+        """backend property should return the backend instance."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        assert analyzer.backend is populated_backend
+
+
 class TestSummary:
     """Tests for SHAPAnalyzer.summary()."""
 
@@ -78,6 +92,12 @@ class TestSummary:
         result = analyzer.summary(datetime(2024, 1, 1), datetime(2024, 1, 2))
 
         assert result.empty
+
+    def test_summary_invalid_sort_by_raises(self, populated_backend):
+        """summary should raise ValueError when sort_by column doesn't exist."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="Invalid sort_by"):
+            analyzer.summary(datetime(2025, 12, 20), datetime(2025, 12, 26), sort_by="invalid")
 
 
 class TestCompareTimePeriods:
@@ -188,3 +208,35 @@ class TestCompareTimePeriods:
         )
 
         assert result.empty
+
+    def test_compare_time_periods_invalid_sort_by_raises(self, populated_backend):
+        """compare_time_periods should raise ValueError when sort_by column doesn't exist."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="Invalid sort_by"):
+            analyzer.compare_time_periods(
+                Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+                Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+                sort_by="invalid",
+            )
+
+
+class TestCompareBatches:
+    """Tests for SHAPAnalyzer.compare_batches()."""
+
+    def test_compare_batches_returns_correct_structure(self, populated_backend):
+        """compare_batches should return a DataFrame with the standard comparison columns."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.compare_batches("batch_day_0", "batch_day_1")
+
+        assert isinstance(result, pd.DataFrame)
+        assert "psi" in result.columns
+        assert "mean_abs_1" in result.columns
+        assert "mean_abs_2" in result.columns
+        assert "n_samples_1" in result.attrs
+        assert "n_samples_2" in result.attrs
+
+    def test_compare_batches_invalid_sort_by_raises(self, populated_backend):
+        """compare_batches should raise ValueError when sort_by column doesn't exist."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="Invalid sort_by"):
+            analyzer.compare_batches("batch_day_0", "batch_day_1", sort_by="invalid")
