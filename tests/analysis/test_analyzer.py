@@ -99,6 +99,19 @@ class TestSummary:
         with pytest.raises(ValueError, match="Invalid sort_by"):
             analyzer.summary(datetime(2025, 12, 20), datetime(2025, 12, 26), sort_by="invalid")
 
+    def test_summary_top_k_limits_rows(self, populated_backend):
+        """top_k should return only the k most important features."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.summary(datetime(2025, 12, 20), datetime(2025, 12, 26), top_k=2)
+        assert len(result) == 2
+        assert result.index[0] == "feature_a"  # top feature still first
+
+    def test_summary_top_k_invalid_raises(self, populated_backend):
+        """top_k must be a positive integer."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            analyzer.summary(datetime(2025, 12, 20), datetime(2025, 12, 26), top_k=0)
+
 
 class TestCompareTimePeriods:
     """Tests for SHAPAnalyzer.compare_time_periods()."""
@@ -219,6 +232,26 @@ class TestCompareTimePeriods:
                 sort_by="invalid",
             )
 
+    def test_compare_time_periods_top_k_limits_rows(self, populated_backend):
+        """top_k should return only k features from compare_time_periods."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.compare_time_periods(
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+            top_k=1,
+        )
+        assert len(result) == 1
+
+    def test_compare_time_periods_top_k_invalid_raises(self, populated_backend):
+        """compare_time_periods should raise ValueError for top_k < 1."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            analyzer.compare_time_periods(
+                Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+                Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+                top_k=0,
+            )
+
 
 class TestCompareBatches:
     """Tests for SHAPAnalyzer.compare_batches()."""
@@ -240,3 +273,15 @@ class TestCompareBatches:
         analyzer = SHAPAnalyzer(populated_backend)
         with pytest.raises(ValueError, match="Invalid sort_by"):
             analyzer.compare_batches("batch_day_0", "batch_day_1", sort_by="invalid")
+
+    def test_compare_batches_top_k_limits_rows(self, populated_backend):
+        """top_k should return only k features from compare_batches."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.compare_batches("batch_day_0", "batch_day_1", top_k=1)
+        assert len(result) == 1
+
+    def test_compare_batches_top_k_invalid_raises(self, populated_backend):
+        """compare_batches should raise ValueError for top_k < 1."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            analyzer.compare_batches("batch_day_0", "batch_day_1", top_k=-1)

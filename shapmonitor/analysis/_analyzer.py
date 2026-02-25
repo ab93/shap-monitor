@@ -27,12 +27,12 @@ class SHAPAnalyzer:
 
     Examples
     --------
+    >>> from datetime import datetime
     >>> from shapmonitor.backends import ParquetBackend
     >>> from shapmonitor.analysis import SHAPAnalyzer
-    >>> ...
     >>> backend = ParquetBackend("/path/to/shap_logs")
     >>> analyzer = SHAPAnalyzer(backend, min_abs_shap=0.01)
-    >>> summary = analyzer.summary(start_date, end_date)
+    >>> summary = analyzer.summary(datetime(2025, 1, 1), datetime(2025, 1, 31))
     """
 
     def __init__(self, backend: Backend, min_abs_shap: float = 0.0) -> None:
@@ -96,18 +96,26 @@ class SHAPAnalyzer:
         batch_id: str | None = None,
         model_version: str | None = None,
         sort_by: str = "mean_abs",
+        top_k: int | None = None,
     ) -> DFrameLike:
         """Compute summary statistics for SHAP values in a date range.
 
         Parameters
         ----------
-        start_dt : datetime | date
+        start_dt : datetime | date, optional
             Start of the date range (inclusive).
-        end_dt : datetime | date
+        end_dt : datetime | date, optional
             End of the date range (inclusive).
+        batch_id : str, optional
+            Batch ID to filter results to a specific batch.
+        model_version : str, optional
+            Model version to filter results to a specific model version.
         sort_by : str, optional
             Column to sort results by (default: 'mean_abs').
             Options: 'mean_abs', 'mean', 'std', 'min', 'max'.
+        top_k : int | None, optional
+            If set, return only the top k features after sorting.
+            Must be a positive integer. Default is None (return all features).
 
         Returns
         -------
@@ -128,6 +136,9 @@ class SHAPAnalyzer:
         -----
         Features with mean_abs below `min_abs_shap` threshold are excluded.
         """
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+
         shap_df = self.fetch_shap_values(
             start_dt=start_dt, end_dt=end_dt, batch_id=batch_id, model_version=model_version
         ).rename(columns=lambda col: col.replace("shap_", ""))
@@ -140,7 +151,10 @@ class SHAPAnalyzer:
 
         # TODO: Add relationship correlation with target if feature values and predictions are available
 
-        return result.sort_values("mean_abs", ascending=False)
+        result = result.sort_values("mean_abs", ascending=False)
+        if top_k is not None:
+            result = result.head(top_k)
+        return result
 
     @staticmethod
     def _calculate_psi(shap_df_ref: DFrameLike, shap_df_curr: DFrameLike) -> SeriesLike:
@@ -156,6 +170,7 @@ class SHAPAnalyzer:
         shap_df_ref: DFrameLike,
         shap_df_curr: DFrameLike,
         sort_by: str = "psi",
+        top_k: int | None = None,
     ) -> DFrameLike:
         """Compare two SHAP DataFrames and compute comparison statistics.
 
@@ -213,9 +228,9 @@ class SHAPAnalyzer:
         )
 
         # Sign flip calculation (NaN filled with 0 to avoid false positives)
-        comparison_df["sign_flip"] = np.sign(comparison_df["mean_1"]).fillna(0) != np.sign(
-            comparison_df["mean_2"]
-        ).fillna(0)
+        comparison_df["sign_flip"] = np.sign(comparison_df["mean_1"].fillna(0)) != np.sign(
+            comparison_df["mean_2"].fillna(0)
+        )
 
         # Add PSI calculation
         comparison_df = comparison_df.join(psi, how="left").fillna({"psi": np.nan})
@@ -246,13 +261,17 @@ class SHAPAnalyzer:
                 f"Invalid sort_by value: {sort_by}. Must be one of {list(comparison_df.columns)}"
             )
 
-        return comparison_df.sort_values(sort_by, ascending=False)
+        result = comparison_df.sort_values(by=sort_by, ascending=False)
+        if top_k is not None:
+            result = result.head(top_k)
+        return result
 
     def compare_time_periods(
         self,
         period_ref: Period,
         period_curr: Period,
         sort_by: str = "psi",
+        top_k: int | None = None,
     ) -> DFrameLike:
         """Compare SHAP explanations between two time periods.
 
@@ -266,7 +285,10 @@ class SHAPAnalyzer:
         period_curr : Period
             Tuple of (start_dt, end_dt) defining the current date range (both inclusive).
         sort_by : str, optional
-            Column to sort results by (default: 'mean_abs_1').
+            Column to sort results by (default: 'psi').
+        top_k : int | None, optional
+            If set, return only the top k features after sorting.
+            Must be a positive integer. Default is None (return all features).
 
         Returns
         -------
@@ -305,6 +327,9 @@ class SHAPAnalyzer:
 
 
         """
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+
         shap_df_ref = self.fetch_shap_values(start_dt=period_ref[0], end_dt=period_ref[1]).rename(
             columns=lambda col: col.replace("shap_", "")
         )
@@ -312,13 +337,14 @@ class SHAPAnalyzer:
             start_dt=period_curr[0], end_dt=period_curr[1]
         ).rename(columns=lambda col: col.replace("shap_", ""))
 
-        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by)
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)
 
     def compare_batches(
         self,
         batch_ref: str,
         batch_curr: str,
         sort_by: str = "psi",
+        top_k: int | None = None,
     ) -> DFrameLike:
         """Compare SHAP explanations between two batches.
 
@@ -330,6 +356,9 @@ class SHAPAnalyzer:
             Identifier for the second batch.
         sort_by : str, optional
             Column to sort results by (default: 'psi').
+        top_k : int | None, optional
+            If set, return only the top k features after sorting.
+            Must be a positive integer. Default is None (return all features).
 
         Returns
         -------
@@ -366,6 +395,9 @@ class SHAPAnalyzer:
           | 0.25 - 0.5 | Significant shift           |
           | > 0.5      | Severe shift                |
         """
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+
         shap_df_ref = self.fetch_shap_values(batch_id=batch_ref).rename(
             columns=lambda col: col.replace("shap_", "")
         )
@@ -373,9 +405,15 @@ class SHAPAnalyzer:
             columns=lambda col: col.replace("shap_", "")
         )
 
-        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by)
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)
 
-    def compare_versions(self, model_version_ref: str, model_version_curr: str) -> DFrameLike:
+    def compare_versions(
+        self,
+        model_version_ref: str,
+        model_version_curr: str,
+        sort_by: str = "psi",
+        top_k: int | None = None,
+    ) -> DFrameLike:
         """Compare SHAP explanations across different model versions.
 
         Parameters
@@ -384,6 +422,11 @@ class SHAPAnalyzer:
             Reference model version identifier.
         model_version_curr : str
             Current model version identifier.
+        sort_by : str, optional
+            Column to sort results by (default: 'psi').
+        top_k : int | None, optional
+            If set, return only the top k features after sorting.
+            Must be a positive integer. Default is None (return all features).
 
         Returns
         -------
@@ -420,6 +463,9 @@ class SHAPAnalyzer:
           | 0.25 - 0.5 | Significant shift           |
           | > 0.5      | Severe shift                |
         """
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+
         shap_df_ref = self.fetch_shap_values(model_version=model_version_ref).rename(
             columns=lambda col: col.replace("shap_", "")
         )
@@ -427,4 +473,4 @@ class SHAPAnalyzer:
             columns=lambda col: col.replace("shap_", "")
         )
 
-        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr)
+        return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)

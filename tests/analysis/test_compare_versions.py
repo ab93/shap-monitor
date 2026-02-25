@@ -76,3 +76,15 @@ class TestCompareVersions:
         assert not result.empty
         assert result["mean_abs_1"].notna().all()  # v1.0 data exists
         assert result["mean_abs_2"].isna().all()  # v99.0 data is missing
+
+    def test_compare_versions_top_k_limits_rows(self, multi_version_backend):
+        """top_k should return only k features from compare_versions."""
+        analyzer = SHAPAnalyzer(multi_version_backend)
+        result = analyzer.compare_versions("v1.0", "v2.0", top_k=1)
+        assert len(result) == 1
+
+    def test_compare_versions_top_k_invalid_raises(self, multi_version_backend):
+        """compare_versions should raise ValueError for top_k < 1."""
+        analyzer = SHAPAnalyzer(multi_version_backend)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            analyzer.compare_versions("v1.0", "v2.0", top_k=0)
