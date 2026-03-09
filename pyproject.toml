@@ -9,7 +9,7 @@ maintainers = [
     {name = "Avik Basu"}
 ]
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 keywords = [
     "shap",
     "monitoring",
@@ -22,7 +22,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -40,6 +39,7 @@ dependencies = [
     "numpy (>=1.26.0,<3.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
     "pyarrow (>=17.0.0,<23.0.0)",
+    "scikit-learn (>=1.0.0)",
 ]
 
 

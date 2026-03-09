@@ -1,10 +1,11 @@
 import logging
 from datetime import date, datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from shapmonitor.analysis.metrics import population_stability_index
+from shapmonitor.analysis.metrics import adversarial_auc, population_stability_index
 from shapmonitor.types import Backend, DFrameLike, Period, SeriesLike
 
 _logger = logging.getLogger(__name__)
@@ -48,6 +49,16 @@ class SHAPAnalyzer:
     def backend(self) -> Backend:
         """Get the backend for retrieving explanations."""
         return self._backend
+
+    @staticmethod
+    def _validate_top_k(top_k: int | None) -> None:
+        """Raise ValueError if top_k is set but less than 1."""
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+
+    def _fetch_and_strip_shap_values(self, **kwargs) -> DFrameLike:
+        """Fetch SHAP values and strip the 'shap_' column prefix."""
+        return self.fetch_shap_values(**kwargs).rename(columns=lambda col: col.replace("shap_", ""))
 
     def fetch_shap_values(self, **kwargs) -> DFrameLike:
         """Fetch raw SHAP values from the backend within a date range.
@@ -136,12 +147,11 @@ class SHAPAnalyzer:
         -----
         Features with mean_abs below `min_abs_shap` threshold are excluded.
         """
-        if top_k is not None and top_k < 1:
-            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+        self._validate_top_k(top_k)
 
-        shap_df = self.fetch_shap_values(
+        shap_df = self._fetch_and_strip_shap_values(
             start_dt=start_dt, end_dt=end_dt, batch_id=batch_id, model_version=model_version
-        ).rename(columns=lambda col: col.replace("shap_", ""))
+        )
         result = self._construct_summary(shap_df)
 
         if sort_by not in result.columns:
@@ -151,7 +161,7 @@ class SHAPAnalyzer:
 
         # TODO: Add relationship correlation with target if feature values and predictions are available
 
-        result = result.sort_values("mean_abs", ascending=False)
+        result = result.sort_values(by=sort_by, ascending=False)
         if top_k is not None:
             result = result.head(top_k)
         return result
@@ -327,15 +337,14 @@ class SHAPAnalyzer:
 
 
         """
-        if top_k is not None and top_k < 1:
-            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+        self._validate_top_k(top_k)
 
-        shap_df_ref = self.fetch_shap_values(start_dt=period_ref[0], end_dt=period_ref[1]).rename(
-            columns=lambda col: col.replace("shap_", "")
+        shap_df_ref = self._fetch_and_strip_shap_values(
+            start_dt=period_ref[0], end_dt=period_ref[1]
         )
-        shap_df_curr = self.fetch_shap_values(
+        shap_df_curr = self._fetch_and_strip_shap_values(
             start_dt=period_curr[0], end_dt=period_curr[1]
-        ).rename(columns=lambda col: col.replace("shap_", ""))
+        )
 
         return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)
 
@@ -395,15 +404,10 @@ class SHAPAnalyzer:
           | 0.25 - 0.5 | Significant shift           |
           | > 0.5      | Severe shift                |
         """
-        if top_k is not None and top_k < 1:
-            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+        self._validate_top_k(top_k)
 
-        shap_df_ref = self.fetch_shap_values(batch_id=batch_ref).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
-        shap_df_curr = self.fetch_shap_values(batch_id=batch_curr).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
+        shap_df_ref = self._fetch_and_strip_shap_values(batch_id=batch_ref)
+        shap_df_curr = self._fetch_and_strip_shap_values(batch_id=batch_curr)
 
         return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)
 
@@ -463,14 +467,225 @@ class SHAPAnalyzer:
           | 0.25 - 0.5 | Significant shift           |
           | > 0.5      | Severe shift                |
         """
-        if top_k is not None and top_k < 1:
-            raise ValueError(f"top_k must be a positive integer, got {top_k}.")
+        self._validate_top_k(top_k)
 
-        shap_df_ref = self.fetch_shap_values(model_version=model_version_ref).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
-        shap_df_curr = self.fetch_shap_values(model_version=model_version_curr).rename(
-            columns=lambda col: col.replace("shap_", "")
-        )
+        shap_df_ref = self._fetch_and_strip_shap_values(model_version=model_version_ref)
+        shap_df_curr = self._fetch_and_strip_shap_values(model_version=model_version_curr)
 
         return self._compare_shap_dataframes(shap_df_ref, shap_df_curr, sort_by, top_k)
+
+    def compare_adversarial(
+        self,
+        period_ref: Period,
+        period_curr: Period,
+        classifier: Any | None = None,
+        cv: int = 5,
+        sort_by: str = "adv_importance",
+        top_k: int | None = None,
+        random_state: int | None = None,
+    ) -> DFrameLike:
+        """Compare SHAP distributions between two periods using adversarial validation.
+
+        Trains a binary classifier to distinguish SHAP values from ``period_ref``
+        (label 0) vs ``period_curr`` (label 1). The cross-validated AUC measures
+        overall distributional shift; per-feature importances reveal which SHAP
+        dimensions drive the separability — complementing the univariate PSI score.
+
+        Parameters
+        ----------
+        period_ref : Period
+            Tuple of (start_dt, end_dt) defining the reference date range.
+        period_curr : Period
+            Tuple of (start_dt, end_dt) defining the current date range.
+        classifier : sklearn estimator, optional
+            Sklearn-compatible classifier with ``predict_proba`` and
+            ``feature_importances_``. Defaults to ``RandomForestClassifier``.
+        cv : int, optional
+            Number of stratified k-fold splits (default: 5).
+        sort_by : str, optional
+            Column to sort results by (default: 'adv_importance').
+        top_k : int | None, optional
+            If set, return only the top k features. Must be a positive integer.
+        random_state : int | None, optional
+            Random state for the default classifier and CV splitter.
+
+        Returns
+        -------
+        DataFrame
+            Comparison statistics indexed by feature name.
+
+            Columns:
+                - adv_importance: Feature's contribution to classifier separability
+                - mean_abs_1, mean_abs_2: Mean absolute SHAP value per period
+                - delta_mean_abs: Absolute importance change (period_2 - period_1)
+
+            Attributes:
+                - adversarial_auc: Cross-validated AUC (0.5 = no shift, 1.0 = max shift)
+                - n_samples_ref: Sample count in the reference period
+                - n_samples_curr: Sample count in the current period
+
+        Raises
+        ------
+        ValueError
+            If top_k < 1 or sort_by is not a valid column name.
+
+        Notes
+        -----
+        Returns an empty DataFrame if either period contains no data.
+
+        To run adversarial validation on raw input feature distributions (not SHAP),
+        use ``adversarial_auc`` from ``shapmonitor.analysis.metrics`` directly with
+        ``backend.read(...).filter(like="feat_")``.
+
+        AUC interpretation guide:
+
+          | AUC        | Interpretation                        |
+          |------------|---------------------------------------|
+          | 0.50       | Distributions are indistinguishable   |
+          | 0.50–0.65  | Minor differences, likely noise       |
+          | 0.65–0.80  | Moderate shift — worth investigating  |
+          | 0.80–0.90  | Strong shift detected                 |
+          | > 0.90     | Severe — clearly different regimes    |
+        """
+        self._validate_top_k(top_k)
+
+        shap_df_ref = self._fetch_and_strip_shap_values(
+            start_dt=period_ref[0], end_dt=period_ref[1]
+        )
+        shap_df_curr = self._fetch_and_strip_shap_values(
+            start_dt=period_curr[0], end_dt=period_curr[1]
+        )
+
+        return self._run_adversarial_comparison(
+            shap_df_ref, shap_df_curr, classifier, cv, sort_by, top_k, random_state
+        )
+
+    def compare_adversarial_batches(
+        self,
+        batch_ref: str,
+        batch_curr: str,
+        classifier: Any | None = None,
+        cv: int = 5,
+        sort_by: str = "adv_importance",
+        top_k: int | None = None,
+        random_state: int | None = None,
+    ) -> DFrameLike:
+        """Compare SHAP distributions between two batches using adversarial validation.
+
+        Trains a binary classifier to distinguish SHAP values from ``batch_ref``
+        (label 0) vs ``batch_curr`` (label 1). The cross-validated AUC measures
+        overall distributional shift; per-feature importances reveal which SHAP
+        dimensions drive the separability — complementing the univariate PSI score.
+
+        Parameters
+        ----------
+        batch_ref : str
+            Identifier for the reference batch.
+        batch_curr : str
+            Identifier for the current batch.
+        classifier : sklearn estimator, optional
+            Sklearn-compatible classifier with ``predict_proba`` and
+            ``feature_importances_``. Defaults to ``RandomForestClassifier``.
+        cv : int, optional
+            Number of stratified k-fold splits (default: 5).
+        sort_by : str, optional
+            Column to sort results by (default: 'adv_importance').
+        top_k : int | None, optional
+            If set, return only the top k features. Must be a positive integer.
+        random_state : int | None, optional
+            Random state for the default classifier and CV splitter.
+
+        Returns
+        -------
+        DataFrame
+            Comparison statistics indexed by feature name.
+
+            Columns:
+                - adv_importance: Feature's contribution to classifier separability
+                - mean_abs_1, mean_abs_2: Mean absolute SHAP value per batch
+                - delta_mean_abs: Absolute importance change (batch_2 - batch_1)
+
+            Attributes:
+                - adversarial_auc: Cross-validated AUC (0.5 = no shift, 1.0 = max shift)
+                - n_samples_ref: Sample count in the reference batch
+                - n_samples_curr: Sample count in the current batch
+
+        Raises
+        ------
+        ValueError
+            If top_k < 1 or sort_by is not a valid column name.
+
+        Notes
+        -----
+        Returns an empty DataFrame if either batch contains no data.
+
+        Batch sizes sampled via ``sample_rate`` may be small. Ensure each batch
+        has enough rows for the chosen ``cv`` splits (at least ``2 * cv`` samples
+        total is recommended) for stable AUC estimates.
+
+        AUC interpretation guide:
+
+          | AUC        | Interpretation                        |
+          |------------|---------------------------------------|
+          | 0.50       | Distributions are indistinguishable   |
+          | 0.50–0.65  | Minor differences, likely noise       |
+          | 0.65–0.80  | Moderate shift — worth investigating  |
+          | 0.80–0.90  | Strong shift detected                 |
+          | > 0.90     | Severe — clearly different regimes    |
+        """
+        self._validate_top_k(top_k)
+
+        shap_df_ref = self._fetch_and_strip_shap_values(batch_id=batch_ref)
+        shap_df_curr = self._fetch_and_strip_shap_values(batch_id=batch_curr)
+
+        return self._run_adversarial_comparison(
+            shap_df_ref, shap_df_curr, classifier, cv, sort_by, top_k, random_state
+        )
+
+    def _run_adversarial_comparison(
+        self,
+        shap_df_ref: DFrameLike,
+        shap_df_curr: DFrameLike,
+        classifier: Any | None,
+        cv: int,
+        sort_by: str,
+        top_k: int | None,
+        random_state: int | None,
+    ) -> DFrameLike:
+        """Run adversarial validation on two pre-fetched SHAP DataFrames."""
+        if shap_df_ref.empty or shap_df_curr.empty:
+            _logger.warning("No data found for one or both inputs.")
+            return pd.DataFrame()
+
+        auc, importances = adversarial_auc(shap_df_ref, shap_df_curr, classifier, cv, random_state)
+
+        summary_ref = self._construct_summary(shap_df_ref)
+        summary_curr = self._construct_summary(shap_df_curr)
+
+        n_samples_ref = summary_ref.attrs.get("n_samples")
+        n_samples_curr = summary_curr.attrs.get("n_samples")
+
+        result = pd.DataFrame(
+            {
+                "adv_importance": importances,
+                "mean_abs_1": summary_ref["mean_abs"],
+                "mean_abs_2": summary_curr["mean_abs"],
+            }
+        )
+        result["delta_mean_abs"] = result["mean_abs_2"] - result["mean_abs_1"]
+        result.index.name = "feature"
+
+        if sort_by not in result.columns:
+            raise ValueError(
+                f"Invalid sort_by value: {sort_by}. Must be one of {list(result.columns)}"
+            )
+
+        result = result.sort_values(by=sort_by, ascending=False)
+        result.attrs["adversarial_auc"] = auc
+        result.attrs["n_samples_ref"] = n_samples_ref
+        result.attrs["n_samples_curr"] = n_samples_curr
+
+        if top_k is not None:
+            result = result.head(top_k)
+
+        return result

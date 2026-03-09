@@ -51,11 +51,11 @@ class ParquetBackend(BaseBackend):
 
         self.partition_by = partition_by or ["date"]
 
-        if set(self.partition_by) - _SUPPORTED_PARTITION_BY_VALUES:
+        invalid = set(self.partition_by) - _SUPPORTED_PARTITION_BY_VALUES
+        if invalid:
             raise ValueError(
-                "Invalid partition_by value: %s; Supported values include: %s",
-                self.partition_by,
-                _SUPPORTED_PARTITION_BY_VALUES,
+                f"Invalid partition_by value(s): {sorted(invalid)}. "
+                f"Supported values: {sorted(_SUPPORTED_PARTITION_BY_VALUES)}."
             )
 
         if purge_existing and self._file_dir.exists():
