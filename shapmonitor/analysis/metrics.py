@@ -7,12 +7,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, cross_validate
 
 from shapmonitor.exceptions import InvalidShapeError
-from shapmonitor.types import ArrayLike, DFrameLike, SeriesLike
+from shapmonitor.types import ArrayLike
 
 
 # TODO: Add support for calculating for multiple features in parallel.
 def population_stability_index(
-    reference: ArrayLike | SeriesLike, current: ArrayLike | SeriesLike, buckets: int = 10
+    reference: ArrayLike | pd.Series, current: ArrayLike | pd.Series, buckets: int = 10
 ) -> float:
     """
     Calculate the Population Stability Index (PSI) between two univariate distributions.
@@ -62,12 +62,12 @@ def population_stability_index(
 
 
 def adversarial_auc(
-    reference: DFrameLike,
-    current: DFrameLike,
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
     classifier: Any | None = None,
-    cv: int = 3,
+    cv: int = 5,
     random_state: int | None = None,
-) -> tuple[float, SeriesLike]:
+) -> tuple[float, pd.Series]:
     """Calculate adversarial AUC between two DataFrames.
 
     Trains a binary classifier to distinguish samples from ``reference`` (label 0)

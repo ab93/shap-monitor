@@ -126,21 +126,21 @@ class TestCompareTimePeriods:
 
         expected_cols = {
             "psi",
-            "mean_abs_1",
-            "mean_abs_2",
+            "mean_abs_ref",
+            "mean_abs_curr",
             "delta_mean_abs",
             "pct_delta_mean_abs",
-            "rank_1",
-            "rank_2",
+            "rank_ref",
+            "rank_curr",
             "delta_rank",
             "rank_change",
-            "mean_1",
-            "mean_2",
+            "mean_ref",
+            "mean_curr",
             "sign_flip",
         }
         assert set(result.columns) == expected_cols
-        assert result.attrs["n_samples_1"] == 300
-        assert result.attrs["n_samples_2"] == 400
+        assert result.attrs["n_samples_ref"] == 300
+        assert result.attrs["n_samples_curr"] == 400
 
     def test_compare_delta_calculation(self, populated_backend):
         """Delta should be period_2 - period_1."""
@@ -151,7 +151,7 @@ class TestCompareTimePeriods:
         )
 
         for feature in result.index:
-            expected = result.loc[feature, "mean_abs_2"] - result.loc[feature, "mean_abs_1"]
+            expected = result.loc[feature, "mean_abs_curr"] - result.loc[feature, "mean_abs_ref"]
             np.testing.assert_almost_equal(
                 result.loc[feature, "delta_mean_abs"], expected, decimal=5
             )
@@ -263,10 +263,10 @@ class TestCompareBatches:
 
         assert isinstance(result, pd.DataFrame)
         assert "psi" in result.columns
-        assert "mean_abs_1" in result.columns
-        assert "mean_abs_2" in result.columns
-        assert "n_samples_1" in result.attrs
-        assert "n_samples_2" in result.attrs
+        assert "mean_abs_ref" in result.columns
+        assert "mean_abs_curr" in result.columns
+        assert "n_samples_ref" in result.attrs
+        assert "n_samples_curr" in result.attrs
 
     def test_compare_batches_invalid_sort_by_raises(self, populated_backend):
         """compare_batches should raise ValueError when sort_by column doesn't exist."""
@@ -285,3 +285,164 @@ class TestCompareBatches:
         analyzer = SHAPAnalyzer(populated_backend)
         with pytest.raises(ValueError, match="top_k must be a positive integer"):
             analyzer.compare_batches("batch_day_0", "batch_day_1", top_k=-1)
+
+
+class TestDriftReport:
+    """Tests for SHAPAnalyzer.drift_report()."""
+
+    def test_drift_report_returns_drift_status_column(self, populated_backend):
+        """drift_report should return all compare columns plus drift_status."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.drift_report(
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+        )
+
+        assert "drift_status" in result.columns
+        assert "psi" in result.columns
+
+    def test_drift_report_stable_classification(self, populated_backend):
+        """Features with low PSI should be classified as stable."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.drift_report(
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+        )
+
+        valid_statuses = {"stable", "warning", "alert", "unknown"}
+        assert all(s in valid_statuses for s in result["drift_status"].unique())
+
+    def test_drift_report_alert_classification(self, tmp_path):
+        """Features with PSI >= alert_threshold should be classified as alert."""
+        backend = ParquetBackend(tmp_path)
+
+        # Create a large distribution shift
+        batch_ref = ExplanationBatch(
+            timestamp=datetime(2025, 12, 1),
+            batch_id="ref",
+            model_version="v1.0",
+            n_samples=200,
+            base_values=np.full(200, 0.5),
+            shap_values={"feature_x": np.full(200, 5.0)},
+        )
+        batch_curr = ExplanationBatch(
+            timestamp=datetime(2025, 12, 20),
+            batch_id="curr",
+            model_version="v1.0",
+            n_samples=200,
+            base_values=np.full(200, 0.5),
+            shap_values={"feature_x": np.full(200, -5.0)},
+        )
+        backend.write(batch_ref)
+        backend.write(batch_curr)
+
+        analyzer = SHAPAnalyzer(backend)
+        result = analyzer.drift_report(
+            Period(datetime(2025, 12, 1), datetime(2025, 12, 2)),
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 21)),
+        )
+
+        assert result.loc["feature_x", "drift_status"] in {"warning", "alert"}
+
+    def test_drift_report_custom_thresholds(self, populated_backend):
+        """drift_report should respect custom warn/alert thresholds."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.drift_report(
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+            warn_threshold=0.0,  # everything is at least warning
+            alert_threshold=1000.0,  # nothing will reach alert
+        )
+
+        assert "stable" not in result["drift_status"].values
+
+    def test_drift_report_empty_returns_empty(self, backend):
+        """drift_report should return empty DataFrame when both periods have no data."""
+        analyzer = SHAPAnalyzer(backend)
+        result = analyzer.drift_report(
+            Period(datetime(2024, 1, 1), datetime(2024, 1, 2)),
+            Period(datetime(2024, 1, 3), datetime(2024, 1, 4)),
+        )
+
+        assert result.empty
+
+    def test_drift_report_inherits_attrs(self, populated_backend):
+        """drift_report result should carry n_samples_ref and n_samples_curr attrs."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.drift_report(
+            Period(datetime(2025, 12, 20), datetime(2025, 12, 22)),
+            Period(datetime(2025, 12, 23), datetime(2025, 12, 26)),
+        )
+
+        assert "n_samples_ref" in result.attrs
+        assert "n_samples_curr" in result.attrs
+
+
+class TestFetchFullData:
+    """Tests for SHAPAnalyzer.fetch_full_data()."""
+
+    def test_fetch_full_data_returns_all_columns(self, populated_backend):
+        """fetch_full_data should return shap_*, feat_* are not logged in populated_backend, but shap_ and metadata are."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.fetch_full_data(
+            start_dt=datetime(2025, 12, 20), end_dt=datetime(2025, 12, 26)
+        )
+
+        assert not result.empty
+        # SHAP columns should be present
+        assert any(col.startswith("shap_") for col in result.columns)
+        # Metadata columns should be present
+        assert "batch_id" in result.columns
+        assert "model_version" in result.columns
+
+    def test_fetch_full_data_no_args_returns_all(self, populated_backend):
+        """fetch_full_data() with no args should return all stored rows."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.fetch_full_data()
+
+        # 7 days x 100 samples each = 700 rows
+        assert len(result) == 700
+
+    def test_fetch_full_data_empty_range_returns_empty(self, populated_backend):
+        """fetch_full_data should return empty DataFrame for out-of-range dates."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.fetch_full_data(
+            start_dt=datetime(2024, 1, 1), end_dt=datetime(2024, 1, 2)
+        )
+
+        assert result.empty
+
+
+class TestFeatureTrends:
+    """Tests for SHAPAnalyzer.feature_trends()."""
+
+    def test_feature_trends_returns_multiindex(self, populated_backend):
+        """feature_trends should return a MultiIndex DataFrame."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.feature_trends(datetime(2025, 12, 20), datetime(2025, 12, 26))
+
+        assert result.index.names == ["period_start", "feature"]
+
+    def test_feature_trends_has_mean_abs_column(self, populated_backend):
+        """feature_trends result should have a mean_abs column."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        result = analyzer.feature_trends(datetime(2025, 12, 20), datetime(2025, 12, 26))
+
+        assert "mean_abs" in result.columns
+
+    def test_feature_trends_multiple_windows(self, populated_backend):
+        """14 days of data with freq=7D should yield 2 period windows."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        # populated_backend has 7 days starting 2025-12-20
+        result = analyzer.feature_trends(datetime(2025, 12, 20), datetime(2025, 12, 26), freq="7D")
+
+        period_starts = result.index.get_level_values("period_start").unique()
+        assert len(period_starts) >= 1
+
+    def test_feature_trends_empty_windows_skipped(self, populated_backend):
+        """Windows with no data should be skipped (not appear as NaN rows)."""
+        analyzer = SHAPAnalyzer(populated_backend)
+        # Query a future range with no data
+        result = analyzer.feature_trends(datetime(2030, 1, 1), datetime(2030, 1, 14))
+
+        assert result.empty

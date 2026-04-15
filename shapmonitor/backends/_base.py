@@ -1,8 +1,9 @@
 from abc import ABCMeta, abstractmethod
-from datetime import datetime
+from datetime import datetime, date
 
+import pandas as pd
 
-from shapmonitor.types import ExplanationBatch, DFrameLike
+from shapmonitor.types import ExplanationBatch
 
 
 class BaseBackend(metaclass=ABCMeta):
@@ -11,9 +12,11 @@ class BaseBackend(metaclass=ABCMeta):
     @abstractmethod
     def read(
         self,
-        start_dt: datetime,
-        end_dt: datetime,
-    ) -> DFrameLike:
+        start_dt: datetime | date | None = None,
+        end_dt: datetime | date | None = None,
+        batch_id: str | None = None,
+        model_version: str | None = None,
+    ) -> pd.DataFrame:
         """Read data from the backend."""
         pass  # pragma: no cover
 

@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 
 from shapmonitor.analysis.metrics import adversarial_auc, population_stability_index
-from shapmonitor.types import Backend, DFrameLike, Period, SeriesLike
+from shapmonitor.types import (
+    Backend,
+    DFrameLike,
+    Period,
+    SeriesLike,
+)  # DFrameLike/SeriesLike kept for internal use
 
 _logger = logging.getLogger(__name__)
 
@@ -60,7 +65,7 @@ class SHAPAnalyzer:
         """Fetch SHAP values and strip the 'shap_' column prefix."""
         return self.fetch_shap_values(**kwargs).rename(columns=lambda col: col.replace("shap_", ""))
 
-    def fetch_shap_values(self, **kwargs) -> DFrameLike:
+    def fetch_shap_values(self, **kwargs) -> pd.DataFrame:
         """Fetch raw SHAP values from the backend within a date range.
 
         Parameters
@@ -108,7 +113,7 @@ class SHAPAnalyzer:
         model_version: str | None = None,
         sort_by: str = "mean_abs",
         top_k: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compute summary statistics for SHAP values in a date range.
 
         Parameters
@@ -206,31 +211,33 @@ class SHAPAnalyzer:
         psi = self._calculate_psi(shap_df_ref, shap_df_curr)
 
         # Calculate summaries
-        summary_df_1 = self._construct_summary(shap_df_ref)
-        summary_df_2 = self._construct_summary(shap_df_curr)
+        summary_df_ref = self._construct_summary(shap_df_ref)
+        summary_df_curr = self._construct_summary(shap_df_curr)
 
         # Capture attrs before suffix (pandas loses attrs on most operations)
-        n_samples_1 = summary_df_1.attrs.get("n_samples")
-        n_samples_2 = summary_df_2.attrs.get("n_samples")
+        n_samples_ref = summary_df_ref.attrs.get("n_samples")
+        n_samples_curr = summary_df_curr.attrs.get("n_samples")
 
         # Rename columns with suffixes
-        summary_df_1 = summary_df_1.add_suffix("_1")
-        summary_df_2 = summary_df_2.add_suffix("_2")
+        summary_df_ref = summary_df_ref.add_suffix("_ref")
+        summary_df_curr = summary_df_curr.add_suffix("_curr")
 
         # Merge on index (feature name)
         comparison_df = pd.merge(
-            summary_df_1, summary_df_2, left_index=True, right_index=True, how="outer"
+            summary_df_ref, summary_df_curr, left_index=True, right_index=True, how="outer"
         )
         # Delta calculations
-        comparison_df["delta_mean_abs"] = comparison_df["mean_abs_2"] - comparison_df["mean_abs_1"]
+        comparison_df["delta_mean_abs"] = (
+            comparison_df["mean_abs_curr"] - comparison_df["mean_abs_ref"]
+        )
         comparison_df["pct_delta_mean_abs"] = (
-            comparison_df["delta_mean_abs"] / comparison_df["mean_abs_1"].replace(0, pd.NA)
+            comparison_df["delta_mean_abs"] / comparison_df["mean_abs_ref"].replace(0, pd.NA)
         ) * 100
 
         # Rank calculations
-        comparison_df["rank_1"] = comparison_df["mean_abs_1"].rank(ascending=False)
-        comparison_df["rank_2"] = comparison_df["mean_abs_2"].rank(ascending=False)
-        comparison_df["delta_rank"] = comparison_df["rank_2"] - comparison_df["rank_1"]
+        comparison_df["rank_ref"] = comparison_df["mean_abs_ref"].rank(ascending=False)
+        comparison_df["rank_curr"] = comparison_df["mean_abs_curr"].rank(ascending=False)
+        comparison_df["delta_rank"] = comparison_df["rank_curr"] - comparison_df["rank_ref"]
 
         conditions = [comparison_df["delta_rank"] < 0, comparison_df["delta_rank"] > 0]
         comparison_df["rank_change"] = np.select(
@@ -238,8 +245,8 @@ class SHAPAnalyzer:
         )
 
         # Sign flip calculation (NaN filled with 0 to avoid false positives)
-        comparison_df["sign_flip"] = np.sign(comparison_df["mean_1"].fillna(0)) != np.sign(
-            comparison_df["mean_2"].fillna(0)
+        comparison_df["sign_flip"] = np.sign(comparison_df["mean_ref"].fillna(0)) != np.sign(
+            comparison_df["mean_curr"].fillna(0)
         )
 
         # Add PSI calculation
@@ -250,21 +257,21 @@ class SHAPAnalyzer:
         comparison_df = comparison_df[
             [
                 "psi",
-                "mean_abs_1",
-                "mean_abs_2",
+                "mean_abs_ref",
+                "mean_abs_curr",
                 "delta_mean_abs",
                 "pct_delta_mean_abs",
-                "mean_1",
-                "mean_2",
-                "rank_1",
-                "rank_2",
+                "mean_ref",
+                "mean_curr",
+                "rank_ref",
+                "rank_curr",
                 "delta_rank",
                 "rank_change",
                 "sign_flip",
             ]
         ]
-        comparison_df.attrs["n_samples_1"] = n_samples_1
-        comparison_df.attrs["n_samples_2"] = n_samples_2
+        comparison_df.attrs["n_samples_ref"] = n_samples_ref
+        comparison_df.attrs["n_samples_curr"] = n_samples_curr
 
         if sort_by not in comparison_df.columns:
             raise ValueError(
@@ -282,7 +289,7 @@ class SHAPAnalyzer:
         period_curr: Period,
         sort_by: str = "psi",
         top_k: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compare SHAP explanations between two time periods.
 
         Useful for detecting feature importance drift, ranking changes,
@@ -354,7 +361,7 @@ class SHAPAnalyzer:
         batch_curr: str,
         sort_by: str = "psi",
         top_k: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compare SHAP explanations between two batches.
 
         Parameters
@@ -417,7 +424,7 @@ class SHAPAnalyzer:
         model_version_curr: str,
         sort_by: str = "psi",
         top_k: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compare SHAP explanations across different model versions.
 
         Parameters
@@ -483,7 +490,7 @@ class SHAPAnalyzer:
         sort_by: str = "adv_importance",
         top_k: int | None = None,
         random_state: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compare SHAP distributions between two periods using adversarial validation.
 
         Trains a binary classifier to distinguish SHAP values from ``period_ref``
@@ -569,7 +576,7 @@ class SHAPAnalyzer:
         sort_by: str = "adv_importance",
         top_k: int | None = None,
         random_state: int | None = None,
-    ) -> DFrameLike:
+    ) -> pd.DataFrame:
         """Compare SHAP distributions between two batches using adversarial validation.
 
         Trains a binary classifier to distinguish SHAP values from ``batch_ref``
@@ -642,6 +649,158 @@ class SHAPAnalyzer:
             shap_df_ref, shap_df_curr, classifier, cv, sort_by, top_k, random_state
         )
 
+    def drift_report(
+        self,
+        period_ref: Period,
+        period_curr: Period,
+        warn_threshold: float = 0.1,
+        alert_threshold: float = 0.25,
+    ) -> pd.DataFrame:
+        """Classify features by drift severity using PSI thresholds.
+
+        Wraps ``compare_time_periods()`` and adds a ``drift_status`` column
+        classifying each feature as ``"stable"``, ``"warning"``, ``"alert"``,
+        or ``"unknown"`` (when PSI is NaN — feature appears in only one period).
+
+        Parameters
+        ----------
+        period_ref : Period
+            Tuple of (start_dt, end_dt) defining the reference date range.
+        period_curr : Period
+            Tuple of (start_dt, end_dt) defining the current date range.
+        warn_threshold : float, optional
+            PSI threshold above which status becomes ``"warning"`` (default: 0.1).
+        alert_threshold : float, optional
+            PSI threshold above which status becomes ``"alert"`` (default: 0.25).
+
+        Returns
+        -------
+        DataFrame
+            All columns from ``compare_time_periods()`` plus ``drift_status``.
+
+            Attributes:
+                - n_samples_ref: Sample count in the reference period
+                - n_samples_curr: Sample count in the current period
+        """
+        result = self.compare_time_periods(period_ref, period_curr)
+
+        if result.empty:
+            return result
+
+        conditions = [
+            result["psi"].isna(),
+            result["psi"] < warn_threshold,
+            (result["psi"] >= warn_threshold) & (result["psi"] < alert_threshold),
+            result["psi"] >= alert_threshold,
+        ]
+        choices = ["unknown", "stable", "warning", "alert"]
+        result["drift_status"] = np.select(conditions, choices, default="unknown")
+
+        return result
+
+    def fetch_full_data(
+        self,
+        start_dt: datetime | date | None = None,
+        end_dt: datetime | date | None = None,
+        batch_id: str | None = None,
+        model_version: str | None = None,
+    ) -> pd.DataFrame:
+        """Fetch all columns from the backend (SHAP values, feature values, predictions, metadata).
+
+        Unlike ``fetch_shap_values()``, this returns the full raw DataFrame with
+        all stored columns: ``feat_*``, ``shap_*``, ``prediction``, ``timestamp``,
+        ``batch_id``, ``model_version``, and ``base_value``.
+
+        Parameters
+        ----------
+        start_dt : datetime | date, optional
+            Start of the date range (inclusive).
+        end_dt : datetime | date, optional
+            End of the date range (inclusive).
+        batch_id : str, optional
+            Batch ID to filter to a specific batch.
+        model_version : str, optional
+            Model version to filter to a specific version.
+
+        Returns
+        -------
+        DataFrame
+            Raw DataFrame with all stored columns, or empty DataFrame if no data.
+        """
+        return self._backend.read(
+            start_dt=start_dt, end_dt=end_dt, batch_id=batch_id, model_version=model_version
+        )
+
+    def feature_trends(
+        self,
+        start_dt: datetime | date,
+        end_dt: datetime | date,
+        freq: str = "7D",
+    ) -> pd.DataFrame:
+        """Compute mean absolute SHAP values over rolling time windows.
+
+        Splits ``[start_dt, end_dt]`` into windows of size ``freq`` and computes
+        ``summary()`` for each non-empty window. Useful for detecting gradual
+        feature importance drift over time.
+
+        Parameters
+        ----------
+        start_dt : datetime | date
+            Start of the overall time range.
+        end_dt : datetime | date
+            End of the overall time range (inclusive).
+        freq : str, optional
+            Pandas offset alias defining window size (default: ``"7D"``).
+            Examples: ``"1D"``, ``"7D"``, ``"14D"``, ``"30D"``.
+
+        Returns
+        -------
+        DataFrame
+            MultiIndex DataFrame with ``(period_start, feature)`` index and
+            a ``mean_abs`` column. Empty windows are skipped.
+
+            Index names: ``["period_start", "feature"]``
+        """
+        from pandas.tseries.frequencies import to_offset
+
+        _empty = pd.DataFrame(
+            columns=["mean_abs"],
+            index=pd.MultiIndex.from_tuples([], names=["period_start", "feature"]),
+        )
+
+        offset = to_offset(freq)
+        window_starts = pd.date_range(start=start_dt, end=end_dt, freq=freq)
+        if not len(window_starts):
+            return _empty
+
+        # Single backend read for the entire range — partition in memory per window
+        full_df = self._backend.read(start_dt=start_dt, end_dt=end_dt)
+        if full_df.empty:
+            return _empty
+
+        shap_df = full_df.filter(like="shap_").rename(columns=lambda c: c.replace("shap_", ""))
+        timestamps = pd.to_datetime(full_df["timestamp"])
+
+        frames = []
+        for window_start in window_starts:
+            window_end = window_start + offset - pd.Timedelta(seconds=1)
+            if window_end > pd.Timestamp(end_dt):
+                window_end = pd.Timestamp(end_dt)
+
+            mask = (timestamps >= window_start) & (timestamps <= window_end)
+            window_shap = shap_df[mask]
+            if window_shap.empty:
+                continue
+
+            mean_abs = window_shap.abs().mean().rename("mean_abs")
+            mean_abs.index.name = "feature"
+            mean_abs_df = mean_abs.to_frame()
+            mean_abs_df["period_start"] = window_start.date()
+            mean_abs_df = mean_abs_df.reset_index().set_index(["period_start", "feature"])
+            frames.append(mean_abs_df)
+
+        return pd.concat(frames) if frames else _empty
+
     def _run_adversarial_comparison(
         self,
         shap_df_ref: DFrameLike,
@@ -668,11 +827,11 @@ class SHAPAnalyzer:
         result = pd.DataFrame(
             {
                 "adv_importance": importances,
-                "mean_abs_1": summary_ref["mean_abs"],
-                "mean_abs_2": summary_curr["mean_abs"],
+                "mean_abs_ref": summary_ref["mean_abs"],
+                "mean_abs_curr": summary_curr["mean_abs"],
             }
         )
-        result["delta_mean_abs"] = result["mean_abs_2"] - result["mean_abs_1"]
+        result["delta_mean_abs"] = result["mean_abs_curr"] - result["mean_abs_ref"]
         result.index.name = "feature"
 
         if sort_by not in result.columns:

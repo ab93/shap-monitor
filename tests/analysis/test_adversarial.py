@@ -83,7 +83,7 @@ class TestCompareAdversarial:
         )
 
         assert not result.empty
-        expected_cols = {"adv_importance", "mean_abs_1", "mean_abs_2", "delta_mean_abs"}
+        expected_cols = {"adv_importance", "mean_abs_ref", "mean_abs_curr", "delta_mean_abs"}
         assert set(result.columns) == expected_cols
         assert result.index.name == "feature"
 
@@ -195,7 +195,7 @@ class TestCompareAdversarialBatches:
         result = analyzer.compare_adversarial_batches("batch_ref", "batch_curr", random_state=0)
 
         assert not result.empty
-        expected_cols = {"adv_importance", "mean_abs_1", "mean_abs_2", "delta_mean_abs"}
+        expected_cols = {"adv_importance", "mean_abs_ref", "mean_abs_curr", "delta_mean_abs"}
         assert set(result.columns) == expected_cols
         assert result.index.name == "feature"
 

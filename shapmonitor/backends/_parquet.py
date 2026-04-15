@@ -1,6 +1,6 @@
 import logging
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import datetime, date
 from pathlib import Path
 
@@ -74,6 +74,36 @@ class ParquetBackend(BaseBackend):
         """Get the directory where Parquet files are stored."""
         return self._file_dir
 
+    @staticmethod
+    def _to_date(dt: datetime | date) -> date:
+        """Convert a datetime or date to a date object."""
+        return dt.date() if isinstance(dt, datetime) else dt
+
+    def _iter_date_dirs(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> Iterator[tuple[date, Path]]:
+        """Yield (partition_date, date_dir) pairs from Hive-style date= partitions.
+
+        Skips non-directories and directories with unparseable date strings.
+        Optionally filtered to [start_date, end_date] (both inclusive).
+        """
+        for date_dir in self._file_dir.glob("date=*"):
+            if not date_dir.is_dir():
+                continue
+            try:
+                date_str = date_dir.name.split("=", 1)[1]
+                partition_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except (ValueError, IndexError):
+                _logger.debug("Skipping invalid date directory: %s", date_dir.name)
+                continue
+            if start_date and partition_date < start_date:
+                continue
+            if end_date and partition_date > end_date:
+                continue
+            yield partition_date, date_dir
+
     def read(
         self,
         start_dt: datetime | date | None = None,
@@ -87,9 +117,9 @@ class ParquetBackend(BaseBackend):
 
         Parameters
         ----------
-        start_dt: datetime
+        start_dt: datetime | date, optional
             Start datetime for filtering explanations.
-        end_dt: datetime | None
+        end_dt: datetime | date, optional
             End datetime for filtering explanations.
         batch_id : str, optional
             Batch ID to filter explanations.
@@ -100,17 +130,12 @@ class ParquetBackend(BaseBackend):
         -------
         DataFrame
             A DataFrame containing the explanations within the specified range.
-
-        Raises
-        ------
-        ValueError
-            If no filters are provided.
         """
         filters = []
 
         if start_dt:
-            start_date = start_dt.date().strftime("%Y-%m-%d")
-            end_date = end_dt.date().strftime("%Y-%m-%d") if end_dt else start_date
+            start_date = self._to_date(start_dt).strftime("%Y-%m-%d")
+            end_date = self._to_date(end_dt).strftime("%Y-%m-%d") if end_dt else start_date
 
             filters.append(("date", ">=", start_date))
             filters.append(("date", "<=", end_date))
@@ -121,14 +146,14 @@ class ParquetBackend(BaseBackend):
             filters.append(("model_version", "==", model_version))
 
         if not filters:
-            raise ValueError(
-                "At least one filter (date range, batch_id, model_version) must be provided."
+            _logger.warning(
+                "Reading all data — no filters applied. May be slow for large datasets."
             )
 
         _logger.debug("Reading data with filters: %s", filters)
 
         try:
-            return pd.read_parquet(self._file_dir, filters=filters)
+            return pd.read_parquet(self._file_dir, filters=filters or None)
         except FileNotFoundError:
             _logger.warning(
                 "No Parquet files found in directory: %s with filters: %s",
@@ -173,6 +198,45 @@ class ParquetBackend(BaseBackend):
         _logger.info("Wrote batch %s to %s", batch.batch_id, file_path)
         return file_path
 
+    def list_dates(self) -> list[date]:
+        """Return a sorted list of dates for which data exists in the backend.
+
+        Returns
+        -------
+        list[date]
+            Sorted list of dates with stored data.
+        """
+        return sorted(d for d, _ in self._iter_date_dirs())
+
+    def list_batches(
+        self,
+        start_dt: datetime | date | None = None,
+        end_dt: datetime | date | None = None,
+    ) -> list[str]:
+        """Return a sorted list of batch IDs stored in the backend.
+
+        Parameters
+        ----------
+        start_dt : datetime | date, optional
+            If provided, only return batches on or after this date.
+        end_dt : datetime | date, optional
+            If provided, only return batches on or before this date.
+
+        Returns
+        -------
+        list[str]
+            Sorted list of batch ID strings.
+        """
+        start_date = self._to_date(start_dt) if start_dt else None
+        end_date = self._to_date(end_dt) if end_dt else None
+
+        batch_ids = [
+            parquet_file.stem
+            for _, date_dir in self._iter_date_dirs(start_date, end_date)
+            for parquet_file in date_dir.rglob("*.parquet")
+        ]
+        return sorted(batch_ids)
+
     # TODO: Allow deletion by batch_id or model_version
     def delete(self, cutoff_dt: datetime | date) -> int:
         """
@@ -188,21 +252,10 @@ class ParquetBackend(BaseBackend):
         int
             Number of partitions deleted.
         """
-        cutoff_date = cutoff_dt.date()
+        cutoff_date = self._to_date(cutoff_dt)
         deleted_count = 0
 
-        # Find all date= partition directories (Hive-style)
-        for date_dir in self.file_dir.rglob("date=*"):
-            if not date_dir.is_dir():
-                continue
-
-            try:
-                date_str = date_dir.name.split("=", 1)[1]
-                partition_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            except (ValueError, IndexError):
-                _logger.debug("Skipping invalid date directory: %s", date_dir.name)
-                continue
-
+        for partition_date, date_dir in self._iter_date_dirs():
             if partition_date < cutoff_date:
                 shutil.rmtree(date_dir)
                 _logger.info("Deleted partition: %s", date_dir)

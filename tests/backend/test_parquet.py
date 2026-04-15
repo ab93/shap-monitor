@@ -1,6 +1,6 @@
 """Tests for ParquetBackend."""
 
-from datetime import datetime
+from datetime import datetime, date
 
 import numpy as np
 import pandas as pd
@@ -200,3 +200,142 @@ class TestParquetBackend:
             tmp_path / "date=2025-12-17" / "model_version=v1.0" / "test_batch_001.parquet"
         )
         assert expected_path.exists()
+
+    def test_read_with_date_object_start_dt(self, tmp_path, sample_batch):
+        """read() should accept date objects (not just datetime) for start_dt."""
+        backend = ParquetBackend(tmp_path)
+        backend.write(sample_batch)
+
+        df = backend.read(start_dt=date(2025, 12, 17))
+        assert len(df) == 3
+
+    def test_read_with_date_object_both_bounds(self, tmp_path):
+        """read() should accept date objects for both start_dt and end_dt."""
+        backend = ParquetBackend(tmp_path)
+
+        batch1 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 17, 10, 0, 0),
+            batch_id="batch_day1",
+            model_version="v1.0",
+            n_samples=2,
+            base_values=np.array([0.5, 0.5]),
+            shap_values={"feat": np.array([0.1, 0.2])},
+        )
+        batch2 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 18, 10, 0, 0),
+            batch_id="batch_day2",
+            model_version="v1.0",
+            n_samples=2,
+            base_values=np.array([0.5, 0.5]),
+            shap_values={"feat": np.array([0.3, 0.4])},
+        )
+        backend.write(batch1)
+        backend.write(batch2)
+
+        df = backend.read(start_dt=date(2025, 12, 17), end_dt=date(2025, 12, 18))
+        assert len(df) == 4
+
+    def test_read_all_no_filters(self, tmp_path):
+        """read() with no arguments should return all stored data."""
+        backend = ParquetBackend(tmp_path)
+
+        batch1 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 17, 10, 0, 0),
+            batch_id="batch_day1",
+            model_version="v1.0",
+            n_samples=2,
+            base_values=np.array([0.5, 0.5]),
+            shap_values={"feat": np.array([0.1, 0.2])},
+        )
+        batch2 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 18, 10, 0, 0),
+            batch_id="batch_day2",
+            model_version="v1.0",
+            n_samples=3,
+            base_values=np.array([0.5, 0.5, 0.5]),
+            shap_values={"feat": np.array([0.3, 0.4, 0.5])},
+        )
+        backend.write(batch1)
+        backend.write(batch2)
+
+        df = backend.read()
+        assert len(df) == 5
+
+
+class TestListDiscovery:
+    """Tests for ParquetBackend.list_dates() and list_batches()."""
+
+    def test_list_dates_empty_backend(self, tmp_path):
+        """list_dates() on an empty backend returns an empty list."""
+        backend = ParquetBackend(tmp_path)
+        assert backend.list_dates() == []
+
+    def test_list_dates_returns_sorted_dates(self, tmp_path):
+        """list_dates() returns sorted list of dates."""
+        backend = ParquetBackend(tmp_path)
+
+        for day in [18, 17, 20]:
+            batch = ExplanationBatch(
+                timestamp=datetime(2025, 12, day),
+                batch_id=f"batch_{day}",
+                model_version="v1.0",
+                n_samples=1,
+                base_values=np.array([0.5]),
+                shap_values={"feat": np.array([0.1])},
+            )
+            backend.write(batch)
+
+        dates = backend.list_dates()
+        assert dates == sorted(dates)
+        assert len(dates) == 3
+        assert dates[0] == date(2025, 12, 17)
+        assert dates[-1] == date(2025, 12, 20)
+
+    def test_list_batches_empty_backend(self, tmp_path):
+        """list_batches() on an empty backend returns an empty list."""
+        backend = ParquetBackend(tmp_path)
+        assert backend.list_batches() == []
+
+    def test_list_batches_returns_all_batch_ids(self, tmp_path):
+        """list_batches() returns all batch IDs."""
+        backend = ParquetBackend(tmp_path)
+
+        for bid in ["batch_b", "batch_a", "batch_c"]:
+            batch = ExplanationBatch(
+                timestamp=datetime(2025, 12, 17),
+                batch_id=bid,
+                model_version="v1.0",
+                n_samples=1,
+                base_values=np.array([0.5]),
+                shap_values={"feat": np.array([0.1])},
+            )
+            backend.write(batch)
+
+        batch_ids = backend.list_batches()
+        assert set(batch_ids) == {"batch_a", "batch_b", "batch_c"}
+
+    def test_list_batches_with_date_filter(self, tmp_path):
+        """list_batches() with date filter returns only matching batches."""
+        backend = ParquetBackend(tmp_path)
+
+        batch1 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 17),
+            batch_id="batch_day1",
+            model_version="v1.0",
+            n_samples=1,
+            base_values=np.array([0.5]),
+            shap_values={"feat": np.array([0.1])},
+        )
+        batch2 = ExplanationBatch(
+            timestamp=datetime(2025, 12, 20),
+            batch_id="batch_day2",
+            model_version="v1.0",
+            n_samples=1,
+            base_values=np.array([0.5]),
+            shap_values={"feat": np.array([0.2])},
+        )
+        backend.write(batch1)
+        backend.write(batch2)
+
+        batch_ids = backend.list_batches(start_dt=date(2025, 12, 18), end_dt=date(2025, 12, 21))
+        assert batch_ids == ["batch_day2"]

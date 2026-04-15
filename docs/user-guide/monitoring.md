@@ -131,13 +131,18 @@ Log SHAP explanations for a batch of predictions:
 monitor.log_batch(X_batch)
 
 # With predictions (optional)
-monitor.log_batch(X_batch, y_pred)
+batch_id = monitor.log_batch(X_batch, predictions=y_pred)
+print(f"Logged batch: {batch_id}")
 ```
 
 Parameters:
 
 - `X`: Input features (2D array or DataFrame)
-- `y`: Optional predictions (1D array)
+- `predictions`: Optional predictions (1D array)
+
+Returns:
+
+- `str`: The batch ID used for this log entry (useful for later retrieval)
 
 The method:
 

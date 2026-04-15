@@ -35,12 +35,6 @@ class TestParquetBackendErrors:
         finally:
             tmp_path.chmod(original_mode)  # Restore permissions for cleanup
 
-    def test_read_no_filters_raises(self, tmp_path):
-        """read() with no arguments should raise ValueError."""
-        backend = ParquetBackend(tmp_path)
-        with pytest.raises(ValueError, match="At least one filter"):
-            backend.read()
-
     def test_read_batch_id_filter(self, tmp_path):
         """read() with only a batch_id filter should return matching rows."""
         backend = ParquetBackend(tmp_path)

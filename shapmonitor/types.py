@@ -14,6 +14,7 @@ PathLike = str | OSPathLike
 
 # Array types for features and predictions
 ArrayLike = npt.NDArray[np.floating]
+# Deprecated: use pd.Series and pd.DataFrame directly in public API signatures
 SeriesLike = pd.Series
 DFrameLike = pd.DataFrame
 PredictionValue = float | int | str
@@ -87,10 +88,6 @@ class ExplainerLike(Protocol):
 
     def __call__(self, X: ArrayLike) -> ExplanationLike:
         """Compute SHAP for input features."""
-        ...
-
-    def explain_row(self, X: ArrayLike) -> ExplanationLike:
-        """Compute SHAP for a single input feature row."""
         ...
 
 

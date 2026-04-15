@@ -41,6 +41,12 @@ class TestSHAPMonitor:
         with pytest.raises(ValueError, match="Either data_dir or backend must be provided"):
             SHAPMonitor()
 
+    @pytest.mark.parametrize("sample_rate", [0.0, -0.1, 1.1, 2.0])
+    def test_init_invalid_sample_rate_raises(self, explainer, tmp_path, sample_rate):
+        """SHAPMonitor should raise ValueError for sample_rate outside (0.0, 1.0]."""
+        with pytest.raises(ValueError, match="sample_rate must be in"):
+            SHAPMonitor(explainer=explainer, data_dir=tmp_path, sample_rate=sample_rate)
+
     def test_init_both_data_dir_and_backend_raises(self, explainer, tmp_path):
         """SHAPMonitor should raise ValueError if both data_dir and backend are provided."""
         backend = ParquetBackend(tmp_path)
@@ -134,7 +140,7 @@ class TestSHAPMonitor:
             feature_names=feature_names,
             random_seed=42,
         )
-        monitor.log_batch(X, y=y)
+        monitor.log_batch(X, predictions=y)
 
         backend = ParquetBackend(tmp_path)
         today = datetime.now()
@@ -145,6 +151,24 @@ class TestSHAPMonitor:
         # Check that predictions column exists and has correct length
         assert "prediction" in df.columns
         assert df["prediction"].notna().sum() == expected_samples
+
+    def test_log_batch_returns_batch_id(self, monitor, sample_features):
+        """log_batch should return the batch ID string."""
+        bid = monitor.log_batch(sample_features)
+        assert isinstance(bid, str)
+        assert len(bid) > 0
+
+    def test_log_batch_returns_provided_batch_id(self, monitor, sample_features):
+        """log_batch should return the provided batch_id when given."""
+        bid = monitor.log_batch(sample_features, batch_id="my-batch-123")
+        assert bid == "my-batch-123"
+
+    def test_log_shap_returns_batch_id(self, monitor, sample_features):
+        """log_shap should return the batch ID string."""
+        explanation = monitor.compute(sample_features)
+        bid = monitor.log_shap(explanation)
+        assert isinstance(bid, str)
+        assert len(bid) > 0
 
     def test_log_shap_writes_to_backend(self, monitor, sample_features, feature_names):
         """log_shap should write pre-computed SHAP values to backend."""

@@ -66,6 +66,8 @@ class SHAPMonitor:
         else:
             self._backend = backend
 
+        if not (0.0 < sample_rate <= 1.0):
+            raise ValueError(f"sample_rate must be in (0.0, 1.0], got {sample_rate}.")
         self._sample_rate = sample_rate
         self._model_version = model_version
         self._feature_names = feature_names
@@ -106,7 +108,7 @@ class SHAPMonitor:
         shap_values: ExplanationLike | ArrayLike,
         base_values: ArrayLike | float | None = None,
         batch_id: str | None = None,
-    ) -> None:
+    ) -> str:
         """Log SHAP explanations for a single batch.
 
         Parameters
@@ -155,22 +157,28 @@ class SHAPMonitor:
 
         path = self._backend.write(explanation_batch)
         _logger.info("Logged SHAP explanations for batch_id: %s in path: %s", batch_id, path)
+        return batch_id
 
     def log_batch(
-        self, X: ArrayLike, y: ArrayLike | None = None, batch_id: str | None = None
-    ) -> None:
+        self, X: ArrayLike, predictions: ArrayLike | None = None, batch_id: str | None = None
+    ) -> str:
         """Log SHAP explanations for a batch of predictions.
 
         Parameters
         ----------
         X : ArrayLike
             Input features (2D array: n_samples x n_features).
-        y : ArrayLike, optional
+        predictions : ArrayLike, optional
             Model predictions for the batch. If not provided, predictions
             will not be stored in the explanation record.
         batch_id : str, optional
             Unique identifier for the batch. If not provided, a new UUID
             will be generated.
+
+        Returns
+        -------
+        str
+            The batch ID used for this log entry.
         """
         if self._explainer is None:
             raise ValueError(
@@ -193,10 +201,10 @@ class SHAPMonitor:
             X = np.asarray(X)
             X = X[sample_indices]
 
-        # Sample y to match X if provided
-        if y is not None:
-            y = np.asarray(y)
-            y = y[sample_indices]
+        # Sample predictions to match X if provided
+        if predictions is not None:
+            predictions = np.asarray(predictions)
+            predictions = predictions[sample_indices]
 
         if not batch_id:
             batch_id = self._generate_batch_id()
@@ -222,11 +230,37 @@ class SHAPMonitor:
             base_values=explanations.base_values,
             shap_values=shap_values_dict,
             feature_values=feat_values_dict,
-            predictions=y,
+            predictions=predictions,
         )
 
         path = self._backend.write(explanation_batch)
         _logger.info("Logged SHAP explanations for batch_id: %s in path: %s", batch_id, path)
+        return batch_id
+
+    def get_analyzer(self, min_abs_shap: float = 0.0):
+        """Return a SHAPAnalyzer backed by this monitor's storage.
+
+        Parameters
+        ----------
+        min_abs_shap : float, optional
+            Minimum mean absolute SHAP value threshold (default: 0.0).
+            Features below this threshold are excluded from analysis results.
+
+        Returns
+        -------
+        SHAPAnalyzer
+            An analyzer configured to read from this monitor's backend.
+
+        Examples
+        --------
+        >>> monitor = SHAPMonitor(explainer=explainer, data_dir="./logs")
+        >>> monitor.log_batch(X, y)
+        >>> analyzer = monitor.get_analyzer()
+        >>> summary = analyzer.summary(start_dt, end_dt)
+        """
+        from shapmonitor.analysis import SHAPAnalyzer
+
+        return SHAPAnalyzer(self._backend, min_abs_shap=min_abs_shap)
 
     def compute(self, X: ArrayLike) -> ExplanationLike:
         """

@@ -83,6 +83,31 @@ The monitor will automatically:
 2. Compute SHAP values for sampled predictions
 3. Store explanations to Parquet files in the specified `data_dir`
 
+## Analyzing Explanations
+
+Once you've logged batches, use `SHAPAnalyzer` to detect drift and summarize trends:
+
+```python
+from shapmonitor import SHAPMonitor, Period
+from datetime import date
+
+# Get an analyzer from your monitor (shares the same backend)
+analyzer = monitor.get_analyzer()
+
+# Summary statistics for a time window
+start_dt = date(2025, 1, 1)
+end_dt = date(2025, 1, 31)
+summary = analyzer.summary(start_dt, end_dt)
+print(summary)  # mean_abs, mean, std, min, max per feature
+
+# Drift report: compare two time periods
+period_ref = Period(date(2025, 1, 1), date(2025, 1, 15))
+period_curr = Period(date(2025, 1, 16), date(2025, 1, 31))
+report = analyzer.drift_report(period_ref, period_curr)
+print(report[["psi", "drift_status"]])
+# drift_status: "stable" | "warning" | "alert" | "unknown"
+```
+
 ## Current Status
 
 This project is in early development (v0.1). The core functionality is being actively developed.

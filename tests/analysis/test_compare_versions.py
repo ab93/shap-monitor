@@ -74,8 +74,8 @@ class TestCompareVersions:
 
         # Should still return features from v1.0, but with NaN for v99.0
         assert not result.empty
-        assert result["mean_abs_1"].notna().all()  # v1.0 data exists
-        assert result["mean_abs_2"].isna().all()  # v99.0 data is missing
+        assert result["mean_abs_ref"].notna().all()  # v1.0 data exists
+        assert result["mean_abs_curr"].isna().all()  # v99.0 data is missing
 
     def test_compare_versions_top_k_limits_rows(self, multi_version_backend):
         """top_k should return only k features from compare_versions."""
