@@ -72,11 +72,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          # Suffix ``-cli`` in the cache key busts any prior cache that was
+          # populated before the ``--extras cli`` flag was added below.
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-cli
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --with dev -v
+        run: poetry install --no-interaction --with dev --extras cli -v
         timeout-minutes: 15
 
       - name: Run tests with coverage

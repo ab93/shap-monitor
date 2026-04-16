@@ -264,7 +264,7 @@ def drift_command(
     table.add_column("Status", justify="center")
     table.add_column("|SHAP| ref", justify="right")
     table.add_column("|SHAP| curr", justify="right")
-    table.add_column("\u0394", justify="right")
+    table.add_column("\u0394 |SHAP|", justify="right")
     table.add_column("Rank \u0394", justify="right")
 
     for feat, row in drift_df.iterrows():
@@ -279,7 +279,13 @@ def drift_command(
             psi_str = f"{psi_val:.4f}"
 
         delta_rank = row.get("delta_rank", 0)
-        delta_rank_str = f"{int(delta_rank):+d}" if not np.isnan(delta_rank) else "—"
+        if np.isnan(delta_rank):
+            delta_rank_str = "[dim]—[/dim]"
+        elif int(delta_rank) == 0:
+            # "No change" renders dim so real rank moves pop against it.
+            delta_rank_str = "[dim]—[/dim]"
+        else:
+            delta_rank_str = f"{int(delta_rank):+d}"
 
         table.add_row(
             str(feat),

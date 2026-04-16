@@ -12,9 +12,16 @@ import numpy as np
 import pytest
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
-from typer.testing import CliRunner
 
-from shapmonitor.cli import app
+# The CLI lives in an optional extra (``pip install shap-monitor[cli]``).
+# Skip this whole module when the extra isn't installed so local runs without
+# CLI deps don't abort pytest collection with ``ModuleNotFoundError``.
+pytest.importorskip("typer")
+pytest.importorskip("rich")
+
+from typer.testing import CliRunner  # noqa: E402
+
+from shapmonitor.cli import app  # noqa: E402
 
 runner = CliRunner()
 
