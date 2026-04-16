@@ -83,6 +83,34 @@ The monitor will automatically:
 2. Compute SHAP values for sampled predictions
 3. Store explanations to Parquet files in the specified `data_dir`
 
+## Command-Line Interface
+
+shap-monitor includes an optional CLI for inspecting logged SHAP data from the terminal. Install it with:
+
+```bash
+pip install shap-monitor[cli]
+# or with pipx for an isolated install:
+pipx install shap-monitor[cli]
+```
+
+The CLI provides four commands:
+
+```bash
+# Log SHAP values for a batch of predictions
+shapmonitor log batch.csv --model model.pkl --data-dir ./shap_logs
+
+# View a summary of feature importances
+shapmonitor report summary --data-dir ./shap_logs --period last-7d
+
+# Compare drift between two time periods
+shapmonitor report drift --data-dir ./shap_logs --ref last-14d..last-7d --curr last-7d..now
+
+# Launch a live monitoring dashboard (TUI)
+shapmonitor watch --data-dir ./shap_logs
+```
+
+All report commands support `--json` for machine-readable output (e.g. `shapmonitor report summary --json | jq`). Run `shapmonitor --help` for full usage details.
+
 ## Current Status
 
 This project is in early development (v0.1). The core functionality is being actively developed.
