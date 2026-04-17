@@ -4,9 +4,10 @@
 name = "annotated-doc"
 version = "0.0.4"
 description = "Document parameters, class attributes, return types, and variables inline, with Annotated."
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"},
     {file = "annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4"},
@@ -552,6 +553,7 @@ files = [
     {file = "click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6"},
     {file = "click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a"},
 ]
+markers = {main = "extra == \"cli\""}
 
 [package.dependencies]
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
@@ -2116,9 +2118,10 @@ testing = ["coverage", "pyyaml"]
 name = "markdown-it-py"
 version = "4.0.0"
 description = "Python port of markdown-it. Markdown parsing, done right!"
-optional = false
+optional = true
 python-versions = ">=3.10"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147"},
     {file = "markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3"},
@@ -2336,9 +2339,10 @@ test = ["flake8", "nbdime", "nbval", "notebook", "pytest"]
 name = "mdurl"
 version = "0.1.2"
 description = "Markdown URL utilities"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
@@ -3500,6 +3504,7 @@ files = [
     {file = "pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b"},
     {file = "pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887"},
 ]
+markers = {main = "extra == \"cli\""}
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
@@ -4015,14 +4020,15 @@ testing = ["pytest (>=8.3.5)"]
 
 [[package]]
 name = "rich"
-version = "15.0.0"
+version = "14.3.4"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
-optional = false
-python-versions = ">=3.9.0"
+optional = true
+python-versions = ">=3.8.0"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
-    {file = "rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb"},
-    {file = "rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36"},
+    {file = "rich-14.3.4-py3-none-any.whl", hash = "sha256:07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952"},
+    {file = "rich-14.3.4.tar.gz", hash = "sha256:817e02727f2b25b40ef56f5aa2217f400c8489f79ca8f46ea2b70dd5e14558a9"},
 ]
 
 [package.dependencies]
@@ -4625,9 +4631,10 @@ test-notebooks = ["datasets", "jupyter", "keras", "nbconvert", "nbformat", "nlp"
 name = "shellingham"
 version = "1.5.4"
 description = "Tool to Detect Surrounding Shell"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"},
     {file = "shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"},
@@ -4876,9 +4883,10 @@ test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,
 name = "typer"
 version = "0.24.1"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
-optional = false
+optional = true
 python-versions = ">=3.10"
 groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "typer-0.24.1-py3-none-any.whl", hash = "sha256:112c1f0ce578bfb4cab9ffdabc68f031416ebcc216536611ba21f04e9aa84c9e"},
     {file = "typer-0.24.1.tar.gz", hash = "sha256:e39b4732d65fbdcde189ae76cf7cd48aeae72919dea1fdfc16593be016256b45"},
@@ -5131,7 +5139,10 @@ plotting = ["graphviz", "matplotlib"]
 pyspark = ["cloudpickle", "pyspark (>=3.4)", "scikit-learn"]
 scikit-learn = ["scikit-learn"]
 
+[extras]
+cli = ["rich", "typer"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "e1ad90588e223b9ea9dd500bb679ca079c5500238fbde8a17acb84df72fd5fda"
+content-hash = "1581d919f371261b3de4c9fd099ce549d9522797d26503efa14b43cc59ccc83b"
