@@ -40,6 +40,7 @@ dependencies = [
     "pandas (>=2.0.0,<3.0.0)",
     "pyarrow (>=17.0.0,<23.0.0)",
     "scikit-learn (>=1.0.0)",
+    "typer (>=0.12,<1.0)",
 ]
 
 
