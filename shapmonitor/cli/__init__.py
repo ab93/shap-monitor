@@ -17,6 +17,7 @@ from importlib.metadata import version as _pkg_version
 
 from shapmonitor.cli.log import log_command
 from shapmonitor.cli.report import report_app
+from shapmonitor.cli.watch import watch_command
 
 
 def _version_callback(value: bool) -> None:
@@ -47,4 +48,5 @@ def _main(
 
 
 app.command(name="log", help="Log SHAP values for a batch of predictions.")(log_command)
+app.command(name="watch", help="Launch a live SHAP monitoring dashboard.")(watch_command)
 app.add_typer(report_app, name="report", help="Generate reports from logged SHAP values.")
