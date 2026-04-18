@@ -8,7 +8,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Input
 
-from shapmonitor.cli._common import get_backend, parse_period, psi_label
+from shapmonitor.cli._common import get_backend, parse_period, psi_label, psi_style
 
 
 class WatchApp(App):
@@ -123,26 +123,37 @@ class WatchApp(App):
 
         import numpy as np
 
-        for feat, row in self._summary.iterrows():
+        # Sort by PSI descending so the most-drifting features rise to the top.
+        # Features with no PSI (no overlap with reference period) go to the bottom.
+        view = self._summary.copy()
+        if self._drift is not None:
+            view["_psi"] = self._drift["psi"].reindex(view.index)
+        else:
+            view["_psi"] = np.nan
+        view = view.sort_values("_psi", ascending=False, na_position="last")
+
+        from rich.text import Text
+
+        for feat, row in view.iterrows():
             feat_str = str(feat)
             if self._filter_text and self._filter_text not in feat_str.lower():
                 continue
 
-            psi_val = np.nan
-            if self._drift is not None and feat in self._drift.index:
-                psi_val = self._drift.loc[feat, "psi"]
+            psi_val = row["_psi"]
 
             if np.isnan(psi_val):
                 psi_str = "—"
                 status = "n/a"
+                style = "dim"
             else:
                 psi_str = f"{psi_val:.4f}"
                 status = psi_label(psi_val)
+                style = psi_style(psi_val)
 
             table.add_row(
                 feat_str,
                 f"{row['mean_abs']:.4f}",
                 f"{row['std']:.4f}",
-                psi_str,
-                status,
+                Text(psi_str, style=style),
+                Text(status, style=style),
             )

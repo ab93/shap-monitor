@@ -124,7 +124,7 @@ def main() -> None:
     import pandas as pd
 
     X_current, _ = make_classification(
-        n_samples=100,
+        n_samples=5000,
         n_features=N_FEATURES,
         n_informative=5,
         n_redundant=1,

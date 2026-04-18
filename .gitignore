@@ -215,3 +215,11 @@ demo/
 
 # Local project instructions (Claude Code) — not tracked yet.
 CLAUDE.md
+.claude/
+.plan/
+.vscode/
+
+# Talk materials (kept locally, not tracked in repo)
+talks/
+
+.DS_Store
