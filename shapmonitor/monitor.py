@@ -204,8 +204,17 @@ class SHAPMonitor:
         # Compute SHAP values for the batch
         explanations = self.compute(X)
 
+        # Handle binary/multi-class classifiers where SHAP returns 3-D values
+        # (n_samples, n_features, n_classes). Use the positive class (index 1).
+        values_arr = np.asarray(explanations.values)
+        base_arr = np.asarray(explanations.base_values)
+        if values_arr.ndim == 3:
+            values_arr = values_arr[:, :, 1]
+        if base_arr.ndim == 2:
+            base_arr = base_arr[:, 1]
+
         shap_values_dict = {
-            feat: explanations.values[:, idx] for idx, feat in enumerate(self._feature_names)
+            feat: values_arr[:, idx] for idx, feat in enumerate(self._feature_names)
         }
         if isinstance(X, pd.DataFrame):
             feat_values_dict = {
@@ -219,7 +228,7 @@ class SHAPMonitor:
             batch_id=batch_id,
             model_version=self._model_version,
             n_samples=len(X),
-            base_values=explanations.base_values,
+            base_values=base_arr,
             shap_values=shap_values_dict,
             feature_values=feat_values_dict,
             predictions=y,
