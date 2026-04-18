@@ -395,44 +395,48 @@ class TestWatchCommand:
 # ─── _watch_app.py (Textual TUI) ─────────────────────────────────────────────
 
 
-@pytest.mark.anyio
-async def test_watch_app_with_data(cli_fixtures):
+def test_watch_app_with_data(cli_fixtures):
     """Full TUI lifecycle: mount, load data with two-period drift, filter, refresh."""
+    import asyncio
+
     pytest.importorskip("textual")
     from shapmonitor.cli._watch_app import WatchApp
 
-    watch_app = WatchApp(
-        data_dir=str(cli_fixtures["shap_logs"]),
-        refresh_interval=3600.0,
-        period_spec="2026-01-01..2026-05-01",
-    )
-    async with watch_app.run_test(headless=True) as pilot:
-        await pilot.pause(0.3)
-        # focus-filter binding → action_focus_filter
-        await pilot.press("/")
-        await pilot.pause(0.05)
-        # type into the filter → on_input_changed
-        await pilot.press("f", "0")
-        await pilot.pause(0.05)
-        # clear filter → action_clear_filter
-        await pilot.press("escape")
-        await pilot.pause(0.05)
-        # manual refresh → action_refresh + _load_data
-        await pilot.press("r")
-        await pilot.pause(0.1)
+    async def _run():
+        watch_app = WatchApp(
+            data_dir=str(cli_fixtures["shap_logs"]),
+            refresh_interval=3600.0,
+            period_spec="2026-01-01..2026-05-01",
+        )
+        async with watch_app.run_test(headless=True) as pilot:
+            await pilot.pause(0.3)
+            await pilot.press("/")
+            await pilot.pause(0.05)
+            await pilot.press("f", "0")
+            await pilot.pause(0.05)
+            await pilot.press("escape")
+            await pilot.pause(0.05)
+            await pilot.press("r")
+            await pilot.pause(0.1)
+
+    asyncio.run(_run())
 
 
-@pytest.mark.anyio
-async def test_watch_app_empty_dir(tmp_path):
+def test_watch_app_empty_dir(tmp_path):
     """WatchApp handles an empty data directory without crashing."""
+    import asyncio
+
     pytest.importorskip("textual")
     from shapmonitor.cli._watch_app import WatchApp
 
-    (tmp_path / "shap_logs").mkdir()
-    watch_app = WatchApp(
-        data_dir=str(tmp_path / "shap_logs"),
-        refresh_interval=3600.0,
-        period_spec="last-7d",
-    )
-    async with watch_app.run_test(headless=True) as pilot:
-        await pilot.pause(0.2)
+    async def _run():
+        (tmp_path / "shap_logs").mkdir()
+        watch_app = WatchApp(
+            data_dir=str(tmp_path / "shap_logs"),
+            refresh_interval=3600.0,
+            period_spec="last-7d",
+        )
+        async with watch_app.run_test(headless=True) as pilot:
+            await pilot.pause(0.2)
+
+    asyncio.run(_run())
