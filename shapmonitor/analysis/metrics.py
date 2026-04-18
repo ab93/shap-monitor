@@ -3,9 +3,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_validate
-
 from shapmonitor.exceptions import InvalidShapeError
 from shapmonitor.types import ArrayLike, DFrameLike, SeriesLike
 
@@ -134,6 +131,10 @@ def adversarial_auc(
     common_cols = reference.columns.intersection(current.columns).tolist()
     if not common_cols:
         raise ValueError("reference and current DataFrames have no common columns.")
+
+    # Deferred: sklearn pulls in scipy transitively — only pay the cost when this function runs.
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import StratifiedKFold, cross_validate
 
     ref = reference[common_cols].fillna(0.0)
     curr = current[common_cols].fillna(0.0)

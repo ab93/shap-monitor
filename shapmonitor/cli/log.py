@@ -51,8 +51,10 @@ def log_command(
 
     # All heavy imports are lazy — keeps `shapmonitor --help` fast.
     import joblib  # noqa: S403 — user-provided model path, standard ML workflow
+    import shap
     import numpy as np
     import pandas as pd
+    from shapmonitor import SHAPMonitor
 
     console = get_err_console()
 
@@ -70,8 +72,6 @@ def log_command(
     except Exception as exc:
         fail(f"Cannot load model: {exc}")
 
-    import shap
-
     try:
         explainer = shap.TreeExplainer(loaded_model)
     except Exception:
@@ -79,8 +79,6 @@ def log_command(
             explainer = shap.Explainer(loaded_model)
         except Exception as exc:
             fail(f"Cannot create SHAP explainer: {exc}")
-
-    from shapmonitor import SHAPMonitor
 
     monitor = SHAPMonitor(
         explainer=explainer,
