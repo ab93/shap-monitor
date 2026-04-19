@@ -42,6 +42,9 @@ dependencies = [
     "scikit-learn (>=1.0.0)",
 ]
 
+[project.scripts]
+shapmonitor = "shapmonitor.__main__:main"
+
 
 [project.urls]
 Homepage = "https://github.com/ab93/shap-monitor"
