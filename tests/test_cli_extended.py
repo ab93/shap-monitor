@@ -89,6 +89,20 @@ def test_getattr_unknown():
         _ = shapmonitor.DoesNotExist
 
 
+def test_analysis_getattr_unknown():
+    import shapmonitor.analysis
+
+    with pytest.raises(AttributeError):
+        _ = shapmonitor.analysis.DoesNotExist
+
+
+def test_backends_getattr_unknown():
+    import shapmonitor.backends
+
+    with pytest.raises(AttributeError):
+        _ = shapmonitor.backends.DoesNotExist
+
+
 # ─── _common.py ───────────────────────────────────────────────────────────────
 
 
