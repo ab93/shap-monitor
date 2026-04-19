@@ -23,11 +23,18 @@ def log_command(
     ],
     data_dir: Annotated[
         Path,
-        typer.Option(help="Directory for SHAP log storage.", envvar="SHAPMONITOR_DATA_DIR"),
+        typer.Option(
+            "--data-dir",
+            "-d",
+            help="Directory for SHAP log storage.",
+            envvar="SHAPMONITOR_DATA_DIR",
+        ),
     ] = Path("./shap_logs"),
     sample_rate: Annotated[
         float,
-        typer.Option(help="Fraction of rows to sample (0.0–1.0).", min=0.0, max=1.0),
+        typer.Option(
+            "--sample-rate", "-s", help="Fraction of rows to sample (0.0–1.0).", min=0.0, max=1.0
+        ),
     ] = 1.0,
     model_version: Annotated[
         str,
@@ -35,11 +42,11 @@ def log_command(
     ] = "v0",
     feature_names: Annotated[
         Optional[list[str]],
-        typer.Option("--feature-name", help="Feature name (repeat for multiple)."),
+        typer.Option("--feature-name", "-f", help="Feature name (repeat for multiple)."),
     ] = None,
     json_output: Annotated[
         bool,
-        typer.Option("--json", help="Output result as JSON."),
+        typer.Option("--json", "-j", help="Output result as JSON."),
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable debug logging.")] = False,
     quiet: Annotated[
