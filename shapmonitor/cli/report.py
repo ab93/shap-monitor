@@ -32,11 +32,18 @@ report_app = typer.Typer(no_args_is_help=True)
 def summary_command(
     data_dir: Annotated[
         Path,
-        typer.Option(help="Directory containing SHAP logs.", envvar="SHAPMONITOR_DATA_DIR"),
+        typer.Option(
+            "--data-dir",
+            "-d",
+            help="Directory containing SHAP logs.",
+            envvar="SHAPMONITOR_DATA_DIR",
+        ),
     ] = Path("./shap_logs"),
     period: Annotated[
         Optional[str],
-        typer.Option(help="Period spec, e.g. 'last-7d' or '2026-04-01..2026-04-08'."),
+        typer.Option(
+            "--period", "-p", help="Period spec, e.g. 'last-7d' or '2026-04-01..2026-04-08'."
+        ),
     ] = None,
     start: Annotated[
         Optional[datetime],
@@ -50,11 +57,11 @@ def summary_command(
     ] = None,
     top_k: Annotated[
         Optional[int],
-        typer.Option("--top-k", help="Show only top K features."),
+        typer.Option("--top-k", "-k", help="Show only top K features."),
     ] = None,
     json_output: Annotated[
         bool,
-        typer.Option("--json", help="Output result as JSON."),
+        typer.Option("--json", "-j", help="Output result as JSON."),
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
     quiet: Annotated[bool, typer.Option("--quiet", "-q")] = False,
@@ -130,15 +137,20 @@ def summary_command(
 def drift_command(
     data_dir: Annotated[
         Path,
-        typer.Option(help="Directory containing SHAP logs.", envvar="SHAPMONITOR_DATA_DIR"),
+        typer.Option(
+            "--data-dir",
+            "-d",
+            help="Directory containing SHAP logs.",
+            envvar="SHAPMONITOR_DATA_DIR",
+        ),
     ] = Path("./shap_logs"),
     ref: Annotated[
         Optional[str],
-        typer.Option("--ref", help="Reference period, e.g. 'last-14d..last-7d'."),
+        typer.Option("--ref", "-r", help="Reference period, e.g. 'last-14d..last-7d'."),
     ] = None,
     curr: Annotated[
         Optional[str],
-        typer.Option("--curr", help="Current period, e.g. 'last-7d..now'."),
+        typer.Option("--curr", "-c", help="Current period, e.g. 'last-7d..now'."),
     ] = None,
     ref_start: Annotated[
         Optional[datetime],
@@ -158,11 +170,11 @@ def drift_command(
     ] = None,
     top_k: Annotated[
         Optional[int],
-        typer.Option("--top-k", help="Show only top K features."),
+        typer.Option("--top-k", "-k", help="Show only top K features."),
     ] = None,
     json_output: Annotated[
         bool,
-        typer.Option("--json", help="Output result as JSON."),
+        typer.Option("--json", "-j", help="Output result as JSON."),
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
     quiet: Annotated[bool, typer.Option("--quiet", "-q")] = False,

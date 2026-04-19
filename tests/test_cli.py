@@ -139,6 +139,48 @@ def test_report_summary_json(cli_fixtures):
     assert len(data["features"]) > 0
 
 
+def test_log_command_short_flags(cli_fixtures):
+    """log accepts short flags: -m, -d, -s, -j."""
+    result = runner.invoke(
+        app,
+        [
+            "log",
+            str(cli_fixtures["csv_path"]),
+            "-m",
+            str(cli_fixtures["model_path"]),
+            "-d",
+            str(cli_fixtures["shap_logs"]),
+            "-s",
+            "1.0",
+            "-j",
+        ],
+    )
+    assert result.exit_code == 0, f"log with short flags failed: {result.stdout}"
+    data = json.loads(result.stdout)
+    assert data["status"] == "ok"
+
+
+def test_report_summary_short_flags(cli_fixtures):
+    """report summary accepts -d, -p, -k, -j."""
+    result = runner.invoke(
+        app,
+        [
+            "report",
+            "summary",
+            "-d",
+            str(cli_fixtures["shap_logs"]),
+            "-p",
+            "last-30d",
+            "-k",
+            "3",
+            "-j",
+        ],
+    )
+    assert result.exit_code == 0, f"summary with short flags failed: {result.stdout}"
+    data = json.loads(result.stdout)
+    assert len(data["features"]) <= 3
+
+
 def test_report_drift_json(cli_fixtures):
     result = runner.invoke(
         app,
@@ -156,3 +198,22 @@ def test_report_drift_json(cli_fixtures):
     )
     # Drift may exit 1 if no data in one period — just check it doesn't crash
     assert result.exit_code in (0, 1), f"report drift crashed: {result.stdout}"
+
+
+def test_report_drift_short_flags(cli_fixtures):
+    """report drift accepts -d, -r, -c, -j."""
+    result = runner.invoke(
+        app,
+        [
+            "report",
+            "drift",
+            "-d",
+            str(cli_fixtures["shap_logs"]),
+            "-r",
+            "last-30d..last-15d",
+            "-c",
+            "last-15d..now",
+            "-j",
+        ],
+    )
+    assert result.exit_code in (0, 1), f"drift with short flags crashed: {result.stdout}"
